@@ -1,0 +1,48 @@
+name: awa_app
+description: "A roommate organizing app"
+
+publish_to: 'none' # Remove this line if you plan to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+
+  fonts:
+    - family: Boulder
+      fonts:
+        - asset: assets/fonts/boulder/Boulder Bold.ttf
+          weight: 700
+    - family: DarkerGrotesque
+      fonts:
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-Black.ttf
+          weight: 900
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-Light.ttf
+          weight: 300
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/DarkerGrotesque/DarkerGrotesque-SemiBold.ttf
+          weight: 600
