@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
+import 'payment_page.dart';
+import 'shared_bottom_nav.dart'; // Import the shared bottom nav
 
 class ShoppingListPage extends StatefulWidget {
   @override
@@ -8,6 +10,8 @@ class ShoppingListPage extends StatefulWidget {
 }
 
 class _ShoppingListPageState extends State<ShoppingListPage> {
+  Set<String> selectedItems = {};
+
   String selectedCategory = 'Grocery';
   
   Map<String, List<ShoppingList>> folders = {
@@ -261,94 +265,112 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
     );
   }
 
-  Widget _buildFolderSection(List<ShoppingList> lists) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Folder header with + button
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Text(
-                selectedCategory,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: AppFonts.darkerGrotesque,
-                  color: AppColors.black,
+ Widget _buildFolderSection(List<ShoppingList> lists) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Text(
+              selectedCategory,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                fontFamily: AppFonts.darkerGrotesque,
+                color: AppColors.black,
+              ),
+            ),
+            SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  lists.add(ShoppingList('New List', [], []));
+                });
+              },
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryYellow,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.add,
+                  size: 16,
+                  color: AppColors.white,
                 ),
               ),
-              SizedBox(width: 8),
-              GestureDetector(
+            ),
+          ],
+        ),
+      ),
+      ...lists.map((list) => Container(
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
                 onTap: () {
-                  // Add new list to folder
                   setState(() {
-                    lists.add(ShoppingList('New List', [], []));
+                    if (selectedItems.contains(list.name)) {
+                     selectedItems.remove(list.name);
+                    } else {
+                 selectedItems.add(list.name);
+                    }
                   });
                 },
                 child: Container(
-                  width: 24,
-                  height: 24,
+                  width: double.infinity,
+                  padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryYellow,
-                    shape: BoxShape.circle,
+                    color: selectedItems.contains(list.name)
+                        ? AppColors.primaryYellow
+                        : AppColors.primaryBlue,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    Icons.add,
-                    size: 16,
-                    color: AppColors.white,
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        'assets/images/shopping_cart.png',
+                        width: 20,
+                        height: 20,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          list.name,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: AppFonts.darkerGrotesque,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-        
-        // Vertical list of shopping items
-        ...lists.map((list) => Container(
-          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-          child: GestureDetector(
-            onTap: () => _showListDetailDialog(selectedCategory, list),
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.primaryBlue,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Image.asset(
-                    'assets/images/shopping_cart.png',
-                    width: 20,
-                    height: 20,
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      list.name,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        fontFamily: AppFonts.darkerGrotesque,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ],
+            ),
+            GestureDetector(
+              onTap: () => _showListDetailDialog(selectedCategory, list),
+              child: Container(
+                padding: EdgeInsets.all(16),
+                child: Icon(
+                  Icons.chevron_right,
+                  color: Colors.grey,
+                  size: 20,
+                ),
               ),
             ),
-          ),
-        )).toList(),
-      ],
-    );
-  }
+          ],
+        ),
+      )).toList(),
+    ],
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -629,40 +651,85 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
           ],
         ),
       ),
+
+      bottomSheet: selectedItems.isNotEmpty
+          ? Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.white),
+                    onPressed: () {
+                      setState(() => selectedItems.clear());
+                    },
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PaymentPage(
+                              selectedItems: selectedItems.toList(),
+                            ),
+                          ),
+                        );
+
+                        if (result == true) {
+                          setState(() {
+                            final itemsToRemove = folders[selectedCategory]!
+                                .where((list) => selectedItems.contains(list.name))
+                                .toList();
+
+                            for (var item in itemsToRemove) {
+                              folders[selectedCategory]!.remove(item);
+                            }
+
+                            selectedItems.clear();
+                          });
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Invoice created and items removed.')),
+                          );
+                        }
+                      },
+                      child: Text(
+                        'Payment (${selectedItems.length})',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${selectedItems.length}',
+                      style: TextStyle(
+                        color: AppColors.primaryBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : null,
       
-      // Bottom Navigation
-      bottomNavigationBar: Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            Icon(Icons.home, color: Colors.grey[600]),
-            Icon(Icons.person, color: Colors.grey[600]),
-            Image.asset(
-              'assets/images/shopping_cart.png',
-              width: 24,
-              height: 24,
-              color: AppColors.primaryBlue,
-            ),
-            Icon(Icons.camera_alt, color: Colors.grey[600]),
-            Icon(Icons.chat, color: Colors.grey[600]),
-          ],
-        ),
-      ),
+      // Use the shared bottom navigation with index 1 for Shopping
+      bottomNavigationBar: const SharedBottomNav(currentIndex: 1),
     );
   }
 
@@ -713,15 +780,3 @@ class ShoppingList {
 
   ShoppingList(this.name, this.items, this.isCompleted);
 }
-
-/** 
- * TODO : marking as paid and distributing bills amongst housemates
- * An invoice starts to generate at the bottom of the screen
- * when clicked (assuming done) it then asks tothe total amount, attach photo
- * Lisrt of what was biought , who originally paid, and manually sharing the prices 
- * it iniotially automatically evenly splis it amongst the number of housemates , then you can edit the prices  then you can create invoice payment 
- * Check Flatify again
- * 
-*/
-
-

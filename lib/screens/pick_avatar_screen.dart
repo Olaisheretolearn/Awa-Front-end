@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'create_join_flat_screen.dart';
+import '../api/client.dart';
+import '../api/auth_api.dart';
+import "../utils/ui_helpers.dart";
+import 'package:dio/dio.dart';
+import 'home_screen.dart';
 
 class AvatarSelectionScreen extends StatefulWidget {
   const AvatarSelectionScreen({super.key});
@@ -44,7 +49,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
     _buttonFadeController.forward();
   }
 
- Widget _buildFloatingIcons() {
+  Widget _buildFloatingIcons() {
     return AnimatedBuilder(
       animation: _floatingController,
       builder: (context, child) {
@@ -63,7 +68,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Pizza slice - second position
             Positioned(
               right: 20,
@@ -77,7 +82,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Money - top right
             Positioned(
               right: 30,
@@ -91,7 +96,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Money - second position
             Positioned(
               left: 30,
@@ -105,7 +110,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Vacuum - center left
             Positioned(
               left: 40,
@@ -119,7 +124,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Spray bottle - center right
             Positioned(
               right: 40,
@@ -133,7 +138,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Gloves - bottom left
             Positioned(
               left: 60,
@@ -147,7 +152,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Shopping cart - bottom right
             Positioned(
               right: 50,
@@ -161,7 +166,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Stars scattered - original 3
             Positioned(
               left: 80,
@@ -175,7 +180,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 80,
               top: 130 + (6 * (_floatingController.value * 2 - 1).abs()),
@@ -188,7 +193,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 120,
               bottom: 60 + (7 * (_floatingController.value * 2 - 1).abs()),
@@ -201,7 +206,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             // Additional stars - 3 more
             Positioned(
               left: 140,
@@ -215,7 +220,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 120,
               bottom: 80 + (8 * (_floatingController.value * 2 - 1).abs()),
@@ -228,7 +233,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 160,
               top: 120 + (6 * (_floatingController.value * 2 - 1).abs()),
@@ -246,7 +251,6 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
       },
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -272,8 +276,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                   // Floating icons background
                   _buildFloatingIcons(),
 
-
-                   Positioned(
+                  Positioned(
                     top: MediaQuery.of(context).padding.top + 16,
                     left: 16,
                     child: IconButton(
@@ -308,7 +311,6 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
             ),
           ),
 
-          
           // Bottom white section with avatar selection
           Expanded(
             flex: 3,
@@ -332,7 +334,8 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                     // Avatar grid
                     Expanded(
                       child: GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 4,
                           childAspectRatio: 1,
                           crossAxisSpacing: 16,
@@ -359,7 +362,8 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       image: DecorationImage(
-                                        image: AssetImage('assets/images/avatar_${index + 1}.png'),
+                                        image: AssetImage(
+                                            'assets/images/avatar_${index + 1}.png'),
                                         fit: BoxFit.cover,
                                       ),
                                     ),
@@ -395,20 +399,51 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                       animation: _buttonFadeController,
                       builder: (context, child) {
                         return Opacity(
-                          opacity: _selectedAvatarIndex != null ? _buttonFadeController.value : 0.3,
+                          opacity: _selectedAvatarIndex != null
+                              ? _buttonFadeController.value
+                              : 0.3,
                           child: SizedBox(
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
                               onPressed: _selectedAvatarIndex != null
-                                  ? () {
-                                      // Handle continue action
-                                         Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const CreateJoinFlatScreen(),
-          ),
-        );
+                                  ? () async {
+                                      final api = AuthApi(ApiClient.dev());
+                                      try {
+                                        final me = await api.getMe();
+
+                                        final avatarId =
+                                            'AVA_${(_selectedAvatarIndex! + 1).toString().padLeft(2, '0')}';
+
+                                        await api.setAvatar(
+                                          userId: me.id,
+                                          avatarId: avatarId,
+                                        );
+
+                                        final meAfter = await api.getMe();
+                                        if (!mounted) return;
+
+                                        if (meAfter.roomId == null) {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const CreateJoinFlatScreen()),
+                                          );
+                                        } else {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const HomeScreen()),
+                                          );
+                                        }
+                                      } on DioException catch (e) {
+                                        showSnack(context, extractMsg(e));
+                                      } catch (_) {
+                                        showSnack(
+                                            context, 'Failed to set avatar.');
+                                      }
                                     }
                                   : null,
                               style: ElevatedButton.styleFrom(

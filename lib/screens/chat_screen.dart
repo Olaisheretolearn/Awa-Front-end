@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
+import 'shared_bottom_nav.dart'; // Import the shared bottom nav
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -156,7 +157,8 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      // Use the shared bottom navigation with index 3 for Chat
+      bottomNavigationBar: const SharedBottomNav(currentIndex: 3),
     );
   }
 
@@ -385,60 +387,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          border: Border(
-            top: BorderSide(color: Color(0xFFF0F0F0)),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildNavItem(Icons.home, "Home", false),
-            _buildNavItem(Icons.shopping_bag, "Shopping", false),
-            _buildNavItem(Icons.attach_money, "Bills", false),
-            _buildNavItem(Icons.chat_bubble_outline, "Chat", true),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryBlue : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            icon,
-            color: isSelected ? AppColors.white : const Color(0xFF666666),
-            size: 24,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? AppColors.primaryBlue : const Color(0xFF666666),
-          ),
-        ),
-      ],
     );
   }
 }

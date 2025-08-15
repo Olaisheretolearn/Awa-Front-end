@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
+import '../api/client.dart';
+import '../api/auth_api.dart';
+import "../utils/ui_helpers.dart";
+import 'package:dio/dio.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -16,7 +20,6 @@ class _SignUpScreenState extends State<SignUpScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-
 
   @override
   void initState() {
@@ -61,9 +64,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                   //those icpns
                   _buildFloatingIcons(),
 
-
-
-                   Positioned(
+                  Positioned(
                     top: MediaQuery.of(context).padding.top + 16,
                     left: 16,
                     child: IconButton(
@@ -77,7 +78,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                       ),
                     ),
                   ),
-                  
+
                   // logo brought down
                   Align(
                     alignment: Alignment.bottomCenter,
@@ -98,8 +99,7 @@ class _SignUpScreenState extends State<SignUpScreen>
               ),
             ),
           ),
-          
-       
+
           Expanded(
             flex: 4,
             child: Container(
@@ -109,7 +109,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 32),
-                  
+
                   // Title
                   const Text(
                     'Get up and running',
@@ -120,10 +120,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                       color: AppColors.black,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
-                
+
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -154,12 +153,14 @@ class _SignUpScreenState extends State<SignUpScreen>
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
                           focusedBorder: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.primaryBlue),
+                            borderSide:
+                                BorderSide(color: AppColors.primaryBlue),
                           ),
                           enabledBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
                           suffixIcon: Icon(
                             Icons.person_outline,
                             color: Color(0xFF999999),
@@ -169,9 +170,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Email Field
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,12 +205,14 @@ class _SignUpScreenState extends State<SignUpScreen>
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
                           focusedBorder: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.primaryBlue),
+                            borderSide:
+                                BorderSide(color: AppColors.primaryBlue),
                           ),
                           enabledBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
                           suffixIcon: Icon(
                             Icons.email_outlined,
                             color: Color(0xFF999999),
@@ -219,9 +222,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Password side
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,61 +239,74 @@ class _SignUpScreenState extends State<SignUpScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                     TextField(
-  controller: _passwordController,
-  obscureText: _obscurePassword,
-  style: const TextStyle(
-    fontFamily: AppFonts.darkerGrotesque,
-    fontSize: 18,
-    color: AppColors.black,
-  ),
-  decoration: InputDecoration(
-    hintText: '',
-    hintStyle: const TextStyle(
-      fontFamily: AppFonts.darkerGrotesque,
-      color: Color(0xFF999999),
-    ),
-    border: const UnderlineInputBorder(
-      borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-    ),
-    focusedBorder: const UnderlineInputBorder(
-      borderSide: BorderSide(color: AppColors.primaryBlue),
-    ),
-    enabledBorder: const UnderlineInputBorder(
-      borderSide: BorderSide(color: Color(0xFFE0E0E0)),
-    ),
-    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-    suffixIcon: IconButton(
-      icon: Icon(
-        _obscurePassword
-            ? Icons.visibility_off_outlined
-            : Icons.visibility_outlined,
-        color: const Color(0xFF999999),
-        size: 22,
-      ),
-      onPressed: () {
-        setState(() {
-          _obscurePassword = !_obscurePassword;
-        });
-      },
-    ),
-  ),
-),
-
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        style: const TextStyle(
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 18,
+                          color: AppColors.black,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '',
+                          hintStyle: const TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            color: Color(0xFF999999),
+                          ),
+                          border: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide:
+                                BorderSide(color: AppColors.primaryBlue),
+                          ),
+                          enabledBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                          ),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              color: const Color(0xFF999999),
+                              size: 22,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
 
-                  
-                
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // later impl of sign up
+                      onPressed: () async {
+                        final api = AuthApi(ApiClient.dev());
+                        try {
+                          final user = await api.signUp(
+                            firstName: _firstNameController.text.trim(),
+                            email: _emailController.text.trim(),
+                            password: _passwordController.text,
+                          );
+                          // After register, then takes us to sihn in screen
+                          if (!mounted) return;
+                          Navigator.pop(context); 
+                        } on DioException catch (e) {
+                          showSnack(context, extractMsg(e));
+                        } catch (e) {
+                          showSnack(context,
+                              'Something went wrong. Please try again.');
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryBlue,
@@ -311,9 +327,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 12),
-                  
+
                   // Sign In Link
                   Center(
                     child: GestureDetector(
@@ -341,7 +357,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 32),
                 ],
               ),
@@ -371,7 +387,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Pizza slice - second position
             Positioned(
               right: 20,
@@ -385,7 +401,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Money - top right
             Positioned(
               right: 30,
@@ -399,7 +415,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Money - second position
             Positioned(
               left: 30,
@@ -413,7 +429,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Vacuum - center left
             Positioned(
               left: 40,
@@ -427,7 +443,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Spray bottle - center right
             Positioned(
               right: 40,
@@ -441,7 +457,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Gloves - bottom left
             Positioned(
               left: 60,
@@ -455,7 +471,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Shopping cart - bottom right
             Positioned(
               right: 50,
@@ -469,7 +485,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Stars scattered - original 3
             Positioned(
               left: 80,
@@ -483,7 +499,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 80,
               top: 130 + (6 * (_floatingController.value * 2 - 1).abs()),
@@ -496,7 +512,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 120,
               bottom: 60 + (7 * (_floatingController.value * 2 - 1).abs()),
@@ -509,7 +525,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             // Additional stars - 3 more
             Positioned(
               left: 140,
@@ -523,7 +539,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 120,
               bottom: 80 + (8 * (_floatingController.value * 2 - 1).abs()),
@@ -536,7 +552,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 160,
               top: 120 + (6 * (_floatingController.value * 2 - 1).abs()),

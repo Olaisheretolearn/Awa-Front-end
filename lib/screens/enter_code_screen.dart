@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'home_screen.dart';
+import '../api/client.dart';
+import '../api/room_api.dart';
+import '../api/auth_api.dart';
 
 class InvitationCodeScreen extends StatefulWidget {
   const InvitationCodeScreen({super.key});
@@ -14,7 +17,8 @@ class InvitationCodeScreen extends StatefulWidget {
 class _InvitationCodeScreenState extends State<InvitationCodeScreen>
     with TickerProviderStateMixin {
   late AnimationController _floatingController;
-  final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (index) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
   String _invitationCode = '';
 
@@ -46,14 +50,16 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
         _focusNodes[index + 1].requestFocus();
       }
     }
-    
+
     // Update the invitation code
-    _invitationCode = _controllers.map((controller) => controller.text).join('');
+    _invitationCode =
+        _controllers.map((controller) => controller.text).join('');
     setState(() {});
   }
 
   void _onKeyPressed(RawKeyEvent event, int index) {
-    if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.backspace) {
+    if (event is RawKeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.backspace) {
       if (_controllers[index].text.isEmpty && index > 0) {
         _focusNodes[index - 1].requestFocus();
       }
@@ -62,6 +68,10 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final api = ApiClient.dev();
+    final roomApi = RoomApi(api);
+    final authApi = AuthApi(api);
+
     return Scaffold(
       body: Column(
         children: [
@@ -99,7 +109,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                       ),
                     ),
                   ),
-                  
+
                   // Logo positioned in center
                   Center(
                     child: Text(
@@ -116,7 +126,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
               ),
             ),
           ),
-          
+
           // Bottom white section with form
           Expanded(
             flex: 4,
@@ -127,7 +137,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 40),
-                  
+
                   // Title
                   const Text(
                     'Enter invitation code',
@@ -138,9 +148,9 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                       color: AppColors.black,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Code input boxes
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -178,18 +188,20 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.zero,
                             ),
-                            onChanged: (value) => _onCodeChanged(value.toUpperCase(), index),
+                            onChanged: (value) =>
+                                _onCodeChanged(value.toUpperCase(), index),
                             inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r'[A-Z0-9]')),
                             ],
                           ),
                         ),
                       );
                     }),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Helper text
                   const Text(
                     'You can copy-paste the code from a\nmessage or email',
@@ -201,30 +213,39 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                       height: 1.4,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Next Button
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                 onPressed: _invitationCode.length == 6
-    ? () {
-        print('Invitation code: $_invitationCode');
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
-    : null,
-
+                      onPressed: () async {
+                        try {
+                          final me =
+                              await authApi.getMe(); // get logged-in user id
+                          await roomApi.joinRoom(
+                              userId: me.id, code: _invitationCode);
+                          if (!mounted) return;
+                          // after await roomApi.joinRoom(...)
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const HomeScreen()),
+                            (route) => false,
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Join failed: $e')));
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _invitationCode.length == 6 
-                            ? AppColors.primaryBlue 
+                        backgroundColor: _invitationCode.length == 6
+                            ? AppColors.primaryBlue
                             : const Color(0xFFE0E0E0),
-                        foregroundColor: _invitationCode.length == 6 
-                            ? AppColors.white 
+                        foregroundColor: _invitationCode.length == 6
+                            ? AppColors.white
                             : const Color(0xFF999999),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -241,9 +262,9 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Alternative action
                   GestureDetector(
                     onTap: () {
@@ -260,7 +281,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
                 ],
               ),
@@ -290,7 +311,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Pizza slice - second position
             Positioned(
               right: 20,
@@ -304,7 +325,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Money - top right
             Positioned(
               right: 30,
@@ -318,7 +339,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Money - second position
             Positioned(
               left: 30,
@@ -332,7 +353,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Vacuum - center left
             Positioned(
               left: 40,
@@ -346,7 +367,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Spray bottle - center right
             Positioned(
               right: 40,
@@ -360,7 +381,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Gloves - bottom left
             Positioned(
               left: 60,
@@ -374,7 +395,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Shopping cart - bottom right
             Positioned(
               right: 50,
@@ -388,7 +409,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             // Stars scattered
             Positioned(
               left: 80,
@@ -402,7 +423,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 80,
               top: 130 + (6 * (_floatingController.value * 2 - 1).abs()),
@@ -415,7 +436,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 120,
               bottom: 60 + (7 * (_floatingController.value * 2 - 1).abs()),
@@ -428,7 +449,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 140,
               top: 80 + (5 * (_floatingController.value * 2 - 1).abs()),
@@ -441,7 +462,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 120,
               bottom: 80 + (8 * (_floatingController.value * 2 - 1).abs()),
@@ -454,7 +475,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 160,
               top: 120 + (6 * (_floatingController.value * 2 - 1).abs()),

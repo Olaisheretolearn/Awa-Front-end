@@ -3,6 +3,13 @@ import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'reset_password_screen.dart';
 import 'pick_avatar_screen.dart';
+import 'package:dio/dio.dart';
+import '../utils/ui_helpers.dart';
+import '../api/client.dart';
+import '../api/auth_api.dart';
+import "../utils/ui_helpers.dart";
+import 'home_screen.dart';
+import 'create_join_flat_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -60,8 +67,7 @@ class _SignInScreenState extends State<SignInScreen>
                   // Floating icons background
                   _buildFloatingIcons(),
 
-
-                   Positioned(
+                  Positioned(
                     top: MediaQuery.of(context).padding.top + 16,
                     left: 16,
                     child: IconButton(
@@ -75,7 +81,7 @@ class _SignInScreenState extends State<SignInScreen>
                       ),
                     ),
                   ),
-                  
+
                   // Logo positioned lower in the blue area
                   Align(
                     alignment: Alignment.bottomCenter,
@@ -96,7 +102,7 @@ class _SignInScreenState extends State<SignInScreen>
               ),
             ),
           ),
-          
+
           // Bottom white section with form
           Expanded(
             flex: 4,
@@ -107,7 +113,7 @@ class _SignInScreenState extends State<SignInScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 32),
-                  
+
                   // Title
                   const Text(
                     'Jump right back in.',
@@ -118,9 +124,9 @@ class _SignInScreenState extends State<SignInScreen>
                       color: AppColors.black,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Email Field
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,12 +159,14 @@ class _SignInScreenState extends State<SignInScreen>
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
                           focusedBorder: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.primaryBlue),
+                            borderSide:
+                                BorderSide(color: AppColors.primaryBlue),
                           ),
                           enabledBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
                           suffixIcon: Icon(
                             Icons.email_outlined,
                             color: Color(0xFF999999),
@@ -168,9 +176,9 @@ class _SignInScreenState extends State<SignInScreen>
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Password Field
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,12 +211,14 @@ class _SignInScreenState extends State<SignInScreen>
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
                           focusedBorder: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.primaryBlue),
+                            borderSide:
+                                BorderSide(color: AppColors.primaryBlue),
                           ),
                           enabledBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: Color(0xFFE0E0E0)),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 12),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -227,23 +237,60 @@ class _SignInScreenState extends State<SignInScreen>
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Log In Button
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const AvatarSelectionScreen(),
-    ),
-  );
-},
+                      onPressed: () async {
+                        final api = AuthApi(ApiClient.dev());
+                        try {
+                          await api.signIn(
+                            email: _emailController.text.trim(),
+                            password: _passwordController.text,
+                          );
 
+                          // get current user
+                          final me = await api.getMe();
+
+                          if (!mounted) return;
+
+                          // after: final me = await api.getMe();
+                          if (!mounted) return;
+
+                          if (me.avatarId == null) {
+                            // they haven't chosen an avatar yet
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AvatarSelectionScreen()),
+                            );
+                          } else if (me.roomId == null) {
+                            // Has avatar but no room yet → go create/join
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const CreateJoinFlatScreen()),
+                            );
+                          } else {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const HomeScreen()),
+                            );
+                          }
+                        } on DioException catch (e) {
+                          showSnack(context, extractMsg(e));
+                        } catch (e) {
+                          showSnack(context, 'Login failed. Try again.');
+                        } finally {
+                         
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryBlue,
                         foregroundColor: AppColors.white,
@@ -263,21 +310,20 @@ class _SignInScreenState extends State<SignInScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Forgot Password Link
                   Center(
                     child: GestureDetector(
                       onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const ResetPasswordScreen(),
-    ),
-  );
-},
-
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ResetPasswordScreen(),
+                          ),
+                        );
+                      },
                       child: const Text(
                         'Forgot Password?',
                         style: TextStyle(
@@ -289,9 +335,9 @@ class _SignInScreenState extends State<SignInScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Sign Up Link
                   Center(
                     child: GestureDetector(
@@ -319,7 +365,7 @@ class _SignInScreenState extends State<SignInScreen>
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 32),
                 ],
               ),
@@ -349,7 +395,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Pizza slice - second position
             Positioned(
               right: 20,
@@ -363,7 +409,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Money - top right
             Positioned(
               right: 30,
@@ -377,7 +423,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Money - second position
             Positioned(
               left: 30,
@@ -391,7 +437,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Vacuum - center left
             Positioned(
               left: 40,
@@ -405,7 +451,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Spray bottle - center right
             Positioned(
               right: 40,
@@ -419,7 +465,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Gloves - bottom left
             Positioned(
               left: 60,
@@ -433,7 +479,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Shopping cart - bottom right
             Positioned(
               right: 50,
@@ -447,7 +493,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Stars scattered - original 3
             Positioned(
               left: 80,
@@ -461,7 +507,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 80,
               top: 130 + (6 * (_floatingController.value * 2 - 1).abs()),
@@ -474,7 +520,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 120,
               bottom: 60 + (7 * (_floatingController.value * 2 - 1).abs()),
@@ -487,7 +533,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             // Additional stars - 3 more
             Positioned(
               left: 140,
@@ -501,7 +547,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 120,
               bottom: 80 + (8 * (_floatingController.value * 2 - 1).abs()),
@@ -514,7 +560,7 @@ class _SignInScreenState extends State<SignInScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 160,
               top: 120 + (6 * (_floatingController.value * 2 - 1).abs()),

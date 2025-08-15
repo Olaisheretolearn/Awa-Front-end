@@ -1,9 +1,19 @@
+// Updated HomeScreen using SharedBottomNav
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'chat_screen.dart';
 import 'shopping_list_screen.dart';
+import 'bill_screen.dart';
+import 'shared_bottom_nav.dart'; // Import the shared bottom nav
 import 'dart:math';
+import 'settings_screen.dart';
+import 'task_screen.dart';
+import '../api/client.dart';
+import '../api/auth_api.dart';
+import '../api/room_api.dart';
+
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
   late PageController _calendarController;
   late DateTime _currentDate;
   int _currentWeekIndex = 0;
+  String? _userId;
+  String? _roomId;
+  bool _bootLoading = true;
   
   // Expandable states
   final Map<String, bool> _choreExpanded = {};
@@ -25,13 +38,61 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _currentDate = DateTime.now();
-    _calendarController = PageController(initialPage: 1000); // Start in middle for infinite scroll
+    _calendarController = PageController(initialPage: 1000);
+    _bootstrapIds(); 
+  }
+
+    Future<void> _bootstrapIds() async {
+    try {
+      final api = ApiClient.dev();
+      final me = await AuthApi(api).getMe();          // GET /api/users/me
+      final myRoom = await RoomApi(api).getMyRoom();  // GET /api/rooms/me (MyRoomResponse)
+      setState(() {
+        _userId = me.id;
+        _roomId = myRoom.room?.id; // null if user not in a room yet
+        _bootLoading = false;
+      });
+    } catch (_) {
+      setState(() => _bootLoading = false);
+    }
   }
 
   @override
   void dispose() {
     _calendarController.dispose();
     super.dispose();
+  }
+
+  // Activity card tap handlers
+  void _onActivityCardTap(String type) {
+    switch (type) {
+      case 'chores':
+         if (_roomId == null || _userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Create or join a room first')),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TasksScreen(roomId: _roomId!, userId: _userId!),
+        ),
+      );
+        break;
+      case 'shopping':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => ShoppingListPage()),
+        );
+        break;
+      case 'bills':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const BillsScreen()),
+        );
+        break;
+    }
   }
 
   List<DateTime> _getWeekDates(DateTime baseDate, int weekOffset) {
@@ -47,40 +108,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+ if (_bootLoading) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             _buildHeader(),
-            
-            // Calendar
             _buildCalendar(),
-            
-            // Content
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // What's up in the house today?
                     _buildHouseActivities(),
-                    
                     const SizedBox(height: 24),
-                    
-                    // Upcoming Chores
                     _buildUpcomingChores(),
-                    
                     const SizedBox(height: 24),
-                    
-                    // Your Expenses
                     _buildExpenses(),
-                    
                     const SizedBox(height: 24),
-                    
-                    // Messages Card
                     _buildMessagesCard(),
                   ],
                 ),
@@ -89,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const SharedBottomNav(currentIndex: 0), // Use shared bottom nav
     );
   }
 
@@ -100,8 +153,17 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           GestureDetector(
             onTap: () {
-              // Navigate to settings
-              print('Navigate to settings');
+              Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false, // let your transparent background show
+        pageBuilder: (_, __, ___) => const SettingsScreen(),
+        transitionsBuilder: (_, animation, __, child) {
+          final offsetTween = Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero)
+              .chain(CurveTween(curve: Curves.easeOutCubic));
+          return SlideTransition(position: animation.drive(offsetTween), child: child);
+        },
+      ),
+    );
             },
             child: Container(
               width: 40,
@@ -157,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
         controller: _calendarController,
         onPageChanged: (index) {
           setState(() {
-            _currentWeekIndex = index - 1000; // Offset for infinite scroll
+            _currentWeekIndex = index - 1000;
           });
         },
         itemBuilder: (context, index) {
@@ -236,18 +298,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: '2 Chores pending',
                 icon: 'cleaning.png',
                 color: const Color(0xFF4A90E2),
+                onTap: () => _onActivityCardTap('chores'),
               ),
               const SizedBox(width: 12),
               _buildActivityCard(
                 title: '10+ shopping items',
                 icon: 'shopping_cart.png',
                 color: const Color(0xFF4A90E2),
+                onTap: () => _onActivityCardTap('shopping'),
               ),
               const SizedBox(width: 12),
               _buildActivityCard(
                 title: '3 Bills due',
                 icon: 'billhand.png',
                 color: const Color(0xFFE74C93),
+                onTap: () => _onActivityCardTap('bills'),
               ),
             ],
           ),
@@ -256,46 +321,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-Widget _buildActivityCard({
-  required String title,
-  required String icon,
-  required Color color,
-}) {
-  return Container(
-    width: 140,
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: Image.asset(
-              'assets/images/$icon',
-              width: 48, // or 56 for bigger
-              height: 48,
+  Widget _buildActivityCard({
+    required String title,
+    required String icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 140,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Image.asset(
+                  'assets/images/$icon',
+                  width: 48,
+                  height: 48,
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: AppFonts.darkerGrotesque,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.white,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 
- 
   Widget _buildUpcomingChores() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,7 +479,6 @@ Widget _buildActivityCard({
                     ],
                   ),
                 ),
-                
                 Icon(
                   isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                   color: const Color(0xFF666666),
@@ -522,7 +589,12 @@ Widget _buildActivityCard({
               ),
             ),
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const BillsScreen()),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 foregroundColor: AppColors.white,
@@ -543,23 +615,39 @@ Widget _buildActivityCard({
           ],
         ),
         const SizedBox(height: 16),
-        _buildBillItem(
-          id: 'gas',
-          date: 'Aug\n12',
-          title: 'Gas Bill',
-          subtitle: '\$12.50 from Jim',
-          amount: '\$50.00',
-          amountSubtitle: 'Bob paid',
-          icon: '🔥',
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const BillsScreen()),
+            );
+          },
+          child: _buildBillItem(
+            id: 'gas',
+            date: 'Aug\n12',
+            title: 'Gas Bill',
+            subtitle: '\$12.50 from Jim',
+            amount: '\$50.00',
+            amountSubtitle: 'Bob paid',
+            icon: '🔥',
+          ),
         ),
-        _buildBillItem(
-          id: 'water',
-          date: 'Aug\n22',
-          title: 'Water Bill',
-          subtitle: '\$12.50 from Jim',
-          amount: '\$50.00',
-          amountSubtitle: 'Bob paid',
-          icon: '💧',
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const BillsScreen()),
+            );
+          },
+          child: _buildBillItem(
+            id: 'water',
+            date: 'Aug\n22',
+            title: 'Water Bill',
+            subtitle: '\$12.50 from Jim',
+            amount: '\$50.00',
+            amountSubtitle: 'Bob paid',
+            icon: '💧',
+          ),
         ),
       ],
     );
@@ -740,187 +828,99 @@ Widget _buildActivityCard({
     );
   }
 
+  Widget _buildMessagesCard() {
+    final random = Random();
+    final allIcons = ['pizza.png', 'money.png', 'star.png'];
+    final iconsToShow = List.generate(
+      random.nextInt(3) + 2,
+      (_) => allIcons[random.nextInt(allIcons.length)],
+    );
+    final avatars = ['avatar_1.png', 'avatar_3.png', 'avatar_5.png', 'avatar_8.png'];
 
-
-Widget _buildMessagesCard() {
-  final random = Random();
-
-  // Randomize 2–4 icons
-  final allIcons = ['pizza.png', 'money.png', 'star.png'];
-  final iconsToShow = List.generate(
-    random.nextInt(3) + 2, // 2 to 4 icons
-    (_) => allIcons[random.nextInt(allIcons.length)],
-  );
-
-  // You can change avatars here
-  final avatars = ['avatar_1.png', 'avatar_3.png', 'avatar_5.png', 'avatar_8.png'];
-
-  return Container(
-    height: 140,
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Color(0xFF4A90E2),
-          Color(0xFF357ABD),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Row(
-      children: [
-        /// LEFT SIDE: Avatars + icons
-        Expanded(
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              /// Avatars (overlapping)
-              for (int i = 0; i < avatars.length; i++)
-                Positioned(
-                  left: i * 24,
-                  top: 0,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      image: DecorationImage(
-                        image: AssetImage('assets/images/${avatars[i]}'),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-
-              /// Message Text
-              Positioned(
-                left: 0,
-                top: 50,
-                child: const Text(
-                  'You have 5\nmessages from\nyour flatmates',
-                  style: TextStyle(
-                    fontFamily: AppFonts.darkerGrotesque,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.white,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-
-              /// Floating Icons
-              for (int i = 0; i < iconsToShow.length; i++)
-                Positioned(
-                top: (10 + random.nextInt(40)).toDouble(),
-left: (100 + random.nextInt(40)).toDouble(),
-
-                  child: Image.asset(
-                    'assets/images/${iconsToShow[i]}',
-                    width: 40, // ⬅️ Larger size
-                    height: 40,
-                  ),
-                ),
-            ],
-          ),
-        ),
-
-        /// RIGHT SIDE: Flipped man
-        Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.rotationY(3.1416),
-          child: Image.asset(
-            'assets/images/stretching_man.png',
-            width: 120,
-            height: 120,
-            fit: BoxFit.contain,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-int _selectedIndex = 0;
-
-Widget _buildBottomNav() {
-  return SafeArea(
-    top: false,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFF0F0F0)),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildNavItem(Icons.home, "Home", 0),
-          _buildNavItem(Icons.shopping_bag, "Shopping", 1),
-          _buildNavItem(Icons.attach_money, "Bills", 2),
-          _buildNavItem(Icons.chat_bubble_outline, "Chat", 3),
-        ],
-      ),
-    ),
-  );
-}
-
-
-Widget _buildNavItem(IconData icon, String label, int index) {
-  final bool isSelected = _selectedIndex == index;
-
-  return GestureDetector(
-    onTap: () {
-      setState(() {
-        _selectedIndex = index;
-      });
-
-      // Navigation logic based on index
-      if (index == 1) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) =>  ShoppingListPage()),
-        );
-      } else if (index == 3) {
+    return GestureDetector(
+      onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const ChatScreen()),
         );
-      }
-    },
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryBlue : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+      },
+      child: Container(
+        height: 140,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF4A90E2),
+              Color(0xFF357ABD),
+            ],
           ),
-          child: Icon(
-            icon,
-            color: isSelected ? AppColors.white : const Color(0xFF666666),
-            size: 24,
-          ),
+          borderRadius: BorderRadius.circular(16),
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? AppColors.primaryBlue : const Color(0xFF666666),
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (int i = 0; i < avatars.length; i++)
+                    Positioned(
+                      left: i * 24,
+                      top: 0,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          image: DecorationImage(
+                            image: AssetImage('assets/images/${avatars[i]}'),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    left: 0,
+                    top: 50,
+                    child: const Text(
+                      'You have 5\nmessages from\nyour flatmates',
+                      style: TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  for (int i = 0; i < iconsToShow.length; i++)
+                    Positioned(
+                      top: (10 + random.nextInt(40)).toDouble(),
+                      left: (100 + random.nextInt(40)).toDouble(),
+                      child: Image.asset(
+                        'assets/images/${iconsToShow[i]}',
+                        width: 40,
+                        height: 40,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.rotationY(3.1416),
+              child: Image.asset(
+                'assets/images/stretching_man.png',
+                width: 120,
+                height: 120,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
-}
-
-
+      ),
+    );
+  }
 }

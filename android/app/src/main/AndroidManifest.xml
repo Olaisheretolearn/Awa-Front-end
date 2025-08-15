@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <application
         android:label="awa_app"
         android:name="${applicationName}"
@@ -43,3 +44,5 @@
         </intent>
     </queries>
 </manifest>
+
+

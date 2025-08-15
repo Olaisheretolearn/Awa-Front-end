@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
+import '../api/client.dart';
+import '../api/room_api.dart';
+import '../api/auth_api.dart';
+import 'home_screen.dart';
 
 class CreateSharedFlatScreen extends StatefulWidget {
   const CreateSharedFlatScreen({super.key});
@@ -52,7 +56,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             // Pizza slice - top right
             Positioned(
               right: 20,
@@ -66,7 +70,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             // Money - top right
             Positioned(
               right: 80,
@@ -80,7 +84,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             // Vacuum - center left
             Positioned(
               left: 40,
@@ -94,7 +98,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             // Spray bottle - center right
             Positioned(
               right: 40,
@@ -108,7 +112,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             // Stars scattered
             Positioned(
               left: 120,
@@ -122,7 +126,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               right: 120,
               top: 130 + (6 * (_floatingController.value * 2 - 1).abs()),
@@ -135,7 +139,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                 ),
               ),
             ),
-            
+
             Positioned(
               left: 150,
               top: 200 + (7 * (_floatingController.value * 2 - 1).abs()),
@@ -156,6 +160,10 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
 
   @override
   Widget build(BuildContext context) {
+    final api = ApiClient.dev();
+    final roomApi = RoomApi(api);
+    final authApi = AuthApi(api);
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -178,7 +186,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                   children: [
                     // Floating icons background
                     _buildFloatingIcons(),
-                    
+
                     // Logo centered
                     Center(
                       child: Text(
@@ -194,16 +202,15 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                   ],
                 ),
               ),
-              
+
               // Bottom section with form
               Expanded(
                 flex: 3,
                 child: Container(
                   width: double.infinity,
-                 decoration: const BoxDecoration(
-  color: AppColors.white,
-),
-
+                  decoration: const BoxDecoration(
+                    color: AppColors.white,
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
@@ -219,9 +226,9 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                             color: AppColors.black,
                           ),
                         ),
-                        
+
                         const SizedBox(height: 32),
-                        
+
                         // Flat name field
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,22 +257,26 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                                   color: Color(0xFF999999),
                                 ),
                                 border: const UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                                  borderSide:
+                                      BorderSide(color: Color(0xFFE0E0E0)),
                                 ),
                                 focusedBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(color: AppColors.primaryBlue),
+                                  borderSide:
+                                      BorderSide(color: AppColors.primaryBlue),
                                 ),
                                 enabledBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                                  borderSide:
+                                      BorderSide(color: Color(0xFFE0E0E0)),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                               ),
                             ),
                           ],
                         ),
-                        
+
                         const SizedBox(height: 24),
-                        
+
                         // City field
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,32 +305,77 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                                   color: Color(0xFF999999),
                                 ),
                                 border: const UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                                  borderSide:
+                                      BorderSide(color: Color(0xFFE0E0E0)),
                                 ),
                                 focusedBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(color: AppColors.primaryBlue),
+                                  borderSide:
+                                      BorderSide(color: AppColors.primaryBlue),
                                 ),
                                 enabledBorder: const UnderlineInputBorder(
-                                  borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+                                  borderSide:
+                                      BorderSide(color: Color(0xFFE0E0E0)),
                                 ),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                               ),
                             ),
                           ],
                         ),
-                        
+
                         const Spacer(),
-                        
+
                         // Next button
                         SizedBox(
                           width: double.infinity,
                           height: 52,
                           child: ElevatedButton(
-                            onPressed: () {
-                              // Handle next action
-                              print('Next pressed');
-                              print('Flat name: ${_flatNameController.text}');
-                              print('City: ${_cityController.text}');
+                            onPressed: () async {
+                              final name = _flatNameController.text.trim();
+                              final city = _cityController.text.trim().isEmpty
+                                  ? null
+                                  : _cityController.text.trim();
+                              if (name.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Enter a name')));
+                                return;
+                              }
+                              try {
+                                // if you already store userId after login, use that here:
+                                final me =
+                                    await authApi.getMe(); // UserResponse
+                                final room = await roomApi.createRoom(
+                                    name: name, ownerId: me.id, city: city);
+
+                                if (!mounted) return;
+                                await showDialog(
+                                    context: context,
+                                    builder: (_) {
+                                      return AlertDialog(
+                                        title: const Text('Room created'),
+                                        content: Text(
+                                            'Share this code with roommates:\n${room.code}'),
+                                        actions: [
+                                          TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: const Text('OK'))
+                                        ],
+                                      );
+                                    });
+
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const HomeScreen()),
+                                  (route) => false,
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text('Create failed: $e')));
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryBlue,
@@ -341,9 +397,9 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                             ),
                           ),
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         // "I have a code, instead" link
                         Center(
                           child: GestureDetector(
