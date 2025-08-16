@@ -95,6 +95,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _openChat() async {
+  if (_roomId == null || _userId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Create or join a room first')),
+    );
+    return;
+  }
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ChatScreen(roomId: _roomId!, userId: _userId!),
+    ),
+  );
+}
+
+
   List<DateTime> _getWeekDates(DateTime baseDate, int weekOffset) {
     final startOfWeek = baseDate.subtract(Duration(days: baseDate.weekday - 1));
     final weekStart = startOfWeek.add(Duration(days: weekOffset * 7));
@@ -142,7 +159,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const SharedBottomNav(currentIndex: 0), // Use shared bottom nav
+      bottomNavigationBar: SharedBottomNav(
+  currentIndex: 0,
+  roomId: _roomId,
+  userId: _userId,
+),
+
+ // Use shared bottom nav
     );
   }
 
@@ -838,12 +861,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final avatars = ['avatar_1.png', 'avatar_3.png', 'avatar_5.png', 'avatar_8.png'];
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ChatScreen()),
-        );
-      },
+      onTap: _openChat, 
       child: Container(
         height: 140,
         padding: const EdgeInsets.all(20),

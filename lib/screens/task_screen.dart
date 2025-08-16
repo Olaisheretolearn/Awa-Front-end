@@ -11,70 +11,81 @@ import '../api/model.dart';
 import '../utils/url_utils.dart';
 
 class TasksScreen extends StatefulWidget {
-   final String roomId;
-   final String userId;
-   const TasksScreen({super.key, required this.roomId, required this.userId});
-
+  final String roomId;
+  final String userId;
+  const TasksScreen({super.key, required this.roomId, required this.userId});
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-   late final TasksApi _api;
-   List<TaskDto> _tasks = [];
-    bool _loading = true;
-    String? _error;
-    bool _loadingRoommates = true;
-      Map<String, String> _roommatesByName = {};
-      Map<String, String> _nameById = {};
-      final Set<String> _expandedTasks = <String>{};
-      List<UserResponse> _members = [];
-     
+  late final TasksApi _api;
+  List<TaskDto> _tasks = [];
+  bool _loading = true;
+  String? _error;
+  bool _loadingRoommates = true;
+  Map<String, String> _roommatesByName = {};
+  Map<String, String> _nameById = {};
+  final Set<String> _expandedTasks = <String>{};
+  List<UserResponse> _members = [];
 
-     @override
+  @override
   void initState() {
     super.initState();
     _api = TasksApi(ApiClient.dev());
     _load();
-      _loadRoommates();
+    _loadRoommates();
   }
-Future<void> _loadRoommates() async {
-  try {
-    final roomApi = RoomApi(ApiClient.dev());
-    final members = await roomApi.getMembers(widget.roomId);
 
-    final me = members.firstWhere((m) => m.id == widget.userId, orElse: () => members.first);
-    final others = members.where((m) => m.id != widget.userId).toList();
+  Future<void> _loadRoommates() async {
+    try {
+      final roomApi = RoomApi(ApiClient.dev());
+      final members = await roomApi.getMembers(widget.roomId);
 
-    setState(() {
-      _members = members;
+      final me = members.firstWhere((m) => m.id == widget.userId,
+          orElse: () => members.first);
+      final others = members.where((m) => m.id != widget.userId).toList();
 
-      
-      _roommatesByName = {
-        'You': widget.userId,
-        for (final m in others) m.firstName: m.id,
-      };
+      setState(() {
+        _members = members;
 
-      
-      _nameById = {
-        for (final m in members) m.id: (m.id == widget.userId ? 'You' : m.firstName),
-      };
+        _roommatesByName = {
+          'You': widget.userId,
+          for (final m in others) m.firstName: m.id,
+        };
 
-      _loadingRoommates = false;
-    });
-  } catch (_) {
-    setState(() => _loadingRoommates = false);
+        _nameById = {
+          for (final m in members)
+            m.id: (m.id == widget.userId ? 'You' : m.firstName),
+        };
+
+        _loadingRoommates = false;
+      });
+    } catch (_) {
+      setState(() => _loadingRoommates = false);
+    }
   }
-}
 
+  UserResponse? _findMemberById(String id) {
+    for (final m in _members) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
 
-    Future<void> _load() async {
+  Future<void> _load() async {
     try {
       final items = await _api.listByRoom(widget.roomId);
-      setState(() { _tasks = items; _loading = false; });
+      setState(() {
+        _tasks = items;
+        _loading = false;
+      });
     } catch (e) {
-      setState(() { _error = 'Could not load tasks'; _loading = false; });
+      setState(() {
+        _error = 'Could not load tasks';
+        _loading = false;
+      });
     }
   }
 
@@ -84,7 +95,7 @@ Future<void> _loadRoommates() async {
 //     _roommates = members;
 //   });
 // }
-// // 
+// //
 //  Set<String> expandedTasks = <String>{};
 //  List<Roommate> _roommates = [];
 
@@ -100,15 +111,17 @@ Future<void> _loadRoommates() async {
               child: Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20)),
                 ),
                 child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                    ? Center(child: Text(_error!))
-                    : _tasks.isEmpty
-                      ? _buildEmpty()      // <— matches your first screenshot
-                      : _buildTasksList(),
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                        ? Center(child: Text(_error!))
+                        : _tasks.isEmpty
+                            ? _buildEmpty() // <— matches your first screenshot
+                            : _buildTasksList(),
               ),
             ),
           ],
@@ -119,33 +132,34 @@ Future<void> _loadRoommates() async {
         backgroundColor: AppColors.primaryBlue,
         child: const Icon(Icons.add, color: AppColors.white, size: 28),
       ),
-      bottomNavigationBar: const SharedBottomNav(currentIndex: 0),
+      bottomNavigationBar: SharedBottomNav(
+  currentIndex: 4,                // Tasks tab index
+  roomId: widget.roomId,
+  userId: widget.userId,
+),
     );
   }
 
-    Widget _buildEmpty() => const Center(
-    child: Text('No Tasks yet ✨', style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 16)),
-  );
+  Widget _buildEmpty() => const Center(
+        child: Text('No Tasks yet ✨',
+            style:
+                TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 16)),
+      );
 
   Widget _buildHeader() {
+    final me = _findMemberById(widget.userId);
+    final avatarUrl = me?.avatarImageUrl; // e.g. "/avatars/ava_03.png"
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: const Icon(
-              Icons.close,
-              color: AppColors.white,
-              size: 24,
-            ),
+            child: const Icon(Icons.close, color: AppColors.white, size: 24),
           ),
           const SizedBox(width: 8),
-          const Icon(
-            Icons.menu,
-            color: AppColors.white,
-            size: 24,
-          ),
+          const Icon(Icons.menu, color: AppColors.white, size: 24),
           const SizedBox(width: 16),
           const Text(
             'Tasks',
@@ -166,10 +180,16 @@ Future<void> _loadRoommates() async {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/images/avatar_1.png',
-                fit: BoxFit.cover,
-              ),
+              child: (avatarUrl != null)
+                  ? Image.network(
+                      absoluteUrl(avatarUrl),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Image.asset(
+                          'assets/images/avatar_1.png',
+                          fit: BoxFit.cover),
+                    )
+                  : Image.asset('assets/images/avatar_1.png',
+                      fit: BoxFit.cover),
             ),
           ),
         ],
@@ -178,157 +198,246 @@ Future<void> _loadRoommates() async {
   }
 
   Widget _buildTasksList() => ListView.builder(
-    padding: const EdgeInsets.all(16),
-    itemCount: _tasks.length,
-    itemBuilder: (_, i) {
-      final t = _tasks[i];
-  final assignedName = t.assignedTo != null
-  ? (_nameById[t.assignedTo!] ?? t.assignedTo!)
-  : 'Unassigned';
-return _buildTaskItem(t, assignedName);
-
-    },
-  );
+        padding: const EdgeInsets.all(16),
+        itemCount: _tasks.length,
+        itemBuilder: (_, i) {
+          final t = _tasks[i];
+          final assignedName = t.assignedTo != null
+              ? (_nameById[t.assignedTo!] ?? t.assignedTo!)
+              : 'Unassigned';
+          return _buildTaskItem(t, assignedName);
+        },
+      );
 
   Widget _buildTaskItem(TaskDto task, String assignedName) {
-  final isExpanded = _expandedTasks.contains(task.id);
-  final d = task.nextDueDateUtc ?? task.createdDateUtc;
-  final month = const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.month - 1];
-  final assetIcon = assetFromIconEnum(task.iconId); // your mapper: enum -> asset name
+    final isExpanded = _expandedTasks.contains(task.id);
+    final d = task.nextDueDateUtc ?? task.createdDateUtc;
+    final month = const [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ][d.month - 1];
+    final assetIcon =
+        assetFromIconEnum(task.iconId); // your mapper: enum -> asset name
 
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                isExpanded
+                    ? _expandedTasks.remove(task.id)
+                    : _expandedTasks.add(task.id);
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      '$month\n${d.day}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryYellow.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: task.iconImageUrl != null
+                          ? Image.network(absoluteUrl(task.iconImageUrl),
+                              width: 24, height: 24)
+                          : Image.asset('assets/images/$assetIcon',
+                              width: 24, height: 24),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.name,
+                          style: const TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          assignedName,
+                          style: const TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            fontSize: 14,
+                            color: Color(0xFF666666),
+                          ),
+                        ),
 
+                        // Description preview
+                        if ((task.description ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            task.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: AppFonts.darkerGrotesque,
+                              fontSize: 13,
+                              color: Color(0xFF8A8A8A),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: const Color(0xFF666666),
+                      size: 20),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) _buildTaskDropdown(task),
+        ],
+      ),
+    );
+  }
 
-
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
-    ),
-    child: Column(
-      children: [
-        GestureDetector(
-          onTap: () {
-            setState(() {
-              isExpanded ? _expandedTasks.remove(task.id) : _expandedTasks.add(task.id);
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 30,
-                  child: Text(
-                    '$month\n${d.day}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
+  Widget _buildTaskDropdown(TaskDto task) {
+    return Container(
+      margin: const EdgeInsets.only(left: 62, right: 16, bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if ((task.description ?? '').isNotEmpty) ...[
+            Text(
+              task.description!,
+              style: const TextStyle(
+                fontFamily: AppFonts.darkerGrotesque,
+                fontSize: 14,
+                color: Color(0xFF666666),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          const Text(
+            'Task Actions',
+            style: TextStyle(
+              fontFamily: AppFonts.darkerGrotesque,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.black,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      final updated = await _api.markComplete(
+                          widget.roomId, task.id, widget.userId);
+                      setState(() {
+                        _tasks = _tasks
+                            .map((t) => t.id == updated.id ? updated : t)
+                            .toList();
+                        _expandedTasks.remove(task.id);
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Yayyyyyyy Task done!")),
+                      );
+                    } catch (_) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Sure that's your task? 😅")),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text(
+                    'Mark Complete',
+                    style: TextStyle(
                       fontFamily: AppFonts.darkerGrotesque,
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF666666),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryYellow.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: task.iconImageUrl != null
-                      ? Image.network(absoluteUrl(task.iconImageUrl), width: 24, height: 24)
-                      : Image.asset('assets/images/$assetIcon', width: 24, height: 24),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        task.name,
-                        style: const TextStyle(
-                          fontFamily: AppFonts.darkerGrotesque,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                         assignedName,
-                       
-                        style: const TextStyle(
-                          fontFamily: AppFonts.darkerGrotesque,
-                          fontSize: 14,
-                          color: Color(0xFF666666),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  color: const Color(0xFF666666), size: 20),
-              ],
-            ),
-          ),
-        ),
-        if (isExpanded) _buildTaskDropdown(task),
-      ],
-    ),
-  );
-}
-
-Widget _buildTaskDropdown(TaskDto task) {
-  return Container(
-    margin: const EdgeInsets.only(left: 62, right: 16, bottom: 16),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF8F9FA),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFE0E0E0)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Task Actions',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.black,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
                 onPressed: () async {
                   try {
-                    final updated = await _api.markComplete(widget.roomId, task.id, widget.userId);
+                    await _api.delete(widget.roomId, task.id);
                     setState(() {
-                      _tasks = _tasks.map((t) => t.id == updated.id ? updated : t).toList();
+                      _tasks.removeWhere((t) => t.id == task.id);
                       _expandedTasks.remove(task.id);
                     });
                   } catch (_) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not mark complete')),
+                      const SnackBar(content: Text('Could not delete task')),
                     );
                   }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryBlue,
+                  side: const BorderSide(color: AppColors.primaryBlue),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 child: const Text(
-                  'Mark Complete',
+                  'Skip',
                   style: TextStyle(
                     fontFamily: AppFonts.darkerGrotesque,
                     fontSize: 14,
@@ -336,54 +445,52 @@ Widget _buildTaskDropdown(TaskDto task) {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: () async {
-                try {
-                  await _api.delete(widget.roomId, task.id);
-                  setState(() {
-                    _tasks.removeWhere((t) => t.id == task.id);
-                    _expandedTasks.remove(task.id);
-                  });
-                } catch (_) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Could not delete task')),
-                  );
-                }
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryBlue,
-                side: const BorderSide(color: AppColors.primaryBlue),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text(
-                'Skip',
-                style: TextStyle(
-                  fontFamily: AppFonts.darkerGrotesque,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+String friendlyCompleteError({
+  int? status,
+  String? serverMessage,
+  required String assigneeName,
+}) {
+  final msg = (serverMessage ?? '').toLowerCase();
+
+  if (status == 403 && msg.contains('not assigned')) {
+    return "uhm… looks like $assigneeName was assigned to that task 😅\n"
+           "feeling hyper? because that's not your task 🙈";
+  }
+
+  if (status == 403 && msg.contains('room') && msg.contains('member')) {
+    return "you’re not a member of this room yet 🚪\nask for an invite first!";
+  }
+
+  if ((status == 409) || (msg.contains('already') && msg.contains('complete'))) {
+    return "this one’s already done ✅ nice try!";
+  }
+
+  return "couldn’t mark it complete right now 🤖\ntry again in a bit!";
 }
 
 
-  
+
+
+
+
+
 
   void _showCreateTaskBottomSheet() {
- if (_loadingRoommates) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Still loading roommates…')),
-    );
-    return;
-  }
-
+    if (_loadingRoommates) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Still loading roommates…')),
+      );
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -394,38 +501,40 @@ Widget _buildTaskDropdown(TaskDto task) {
           try {
             final created = await _api.create(widget.roomId, req);
             setState(() => _tasks = [..._tasks, created]);
-            if (mounted) Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Task created!',
+                  style: TextStyle(color: Colors.white),
+                ),
+                backgroundColor: AppColors.primaryBlue,
+              ),
+            );
           } catch (e) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to create task')));
+                const SnackBar(content: Text('Failed to create task')));
           }
         },
-currentUserId: widget.userId, 
-      roommatesByName: _roommatesByName,
-       members: _members,
-
+        currentUserId: widget.userId,
+        roommatesByName: _roommatesByName,
+        members: _members,
       ),
     );
   }
 }
 
-
 class CreateTaskBottomSheet extends StatefulWidget {
-   final Future<void> Function(TaskCreateReq) onSubmit;
-   final String? currentUserId;  
-   final Map<String, String> roommatesByName;  
-   final List<UserResponse> members;
- 
-   
-   const CreateTaskBottomSheet({
-    super.key,
-    required this.onSubmit,
-    required this.currentUserId,
-    required this.roommatesByName,
-     required this.members
-  });
+  final Future<void> Function(TaskCreateReq) onSubmit;
+  final String? currentUserId;
+  final Map<String, String> roommatesByName;
+  final List<UserResponse> members;
 
-  
+  const CreateTaskBottomSheet(
+      {super.key,
+      required this.onSubmit,
+      required this.currentUserId,
+      required this.roommatesByName,
+      required this.members});
 
   @override
   State<CreateTaskBottomSheet> createState() => _CreateTaskBottomSheetState();
@@ -439,23 +548,27 @@ class _CreateTaskBottomSheetState extends State<CreateTaskBottomSheet> {
   String? _selectedAssigneeId;
   List<String> get _assigneeNames => widget.roommatesByName.keys.toList();
 
-    @override
+  @override
   void initState() {
     super.initState();
     _selectedAssigneeId = widget.currentUserId;
   }
 
-    List<MapEntry<String, String>> get _assigneeEntries =>
+  UserResponse? _findMemberById(String id) {
+    for (final m in widget.members) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
+
+  List<MapEntry<String, String>> get _assigneeEntries =>
       widget.roommatesByName.entries.toList();
 
-   void _onAssigneeSelected(String name) {
-  
+  void _onAssigneeSelected(String name) {
     setState(() {
       _selectedAssigneeId = widget.roommatesByName[name];
     });
   }
-
-
 
   final List<String> _availableIcons = [
     'cleaning.png',
@@ -668,7 +781,9 @@ class _CreateTaskBottomSheetState extends State<CreateTaskBottomSheet> {
                   style: TextStyle(
                     fontFamily: AppFonts.darkerGrotesque,
                     fontSize: 16,
-                    color: _selectedDate != null ? AppColors.black : const Color(0xFF666666),
+                    color: _selectedDate != null
+                        ? AppColors.black
+                        : const Color(0xFF666666),
                   ),
                 ),
               ],
@@ -707,7 +822,9 @@ class _CreateTaskBottomSheetState extends State<CreateTaskBottomSheet> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primaryBlue.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                  color: isSelected
+                      ? AppColors.primaryBlue.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: isSelected
                       ? Border.all(color: AppColors.primaryBlue, width: 2)
@@ -729,66 +846,90 @@ class _CreateTaskBottomSheetState extends State<CreateTaskBottomSheet> {
   }
 
   Widget _buildAssigneeSelector() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text('Who are you assigning',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 14,
-            color: Color(0xFF666666),
-          )),
-      const SizedBox(height: 12),
-      Column(
-        children: _assigneeEntries.map((e) {
-          final label = e.key;     
-          final id = e.value;    
-          final isSelected = _selectedAssigneeId == id;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedAssigneeId = id),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primaryBlue.withOpacity(0.08) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected ? AppColors.primaryBlue : const Color(0xFFE0E0E0),
-                    width: isSelected ? 2 : 1,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Who are you assigning',
+            style: TextStyle(
+              fontFamily: AppFonts.darkerGrotesque,
+              fontSize: 14,
+              color: Color(0xFF666666),
+            )),
+        const SizedBox(height: 12),
+        Column(
+          children: _assigneeEntries.map((e) {
+            final label = e.key; // "You" or "harvey" etc.
+            final id = e.value; // userId
+            final isSelected = _selectedAssigneeId == id;
+
+            final member = _findMemberById(id);
+            final avatarUrl = member?.avatarImageUrl;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedAssigneeId = id),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primaryBlue.withOpacity(0.08)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primaryBlue
+                          : const Color(0xFFE0E0E0),
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue,
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: (avatarUrl != null)
+                              ? Image.network(
+                                  absoluteUrl(avatarUrl),
+                                  width: 30,
+                                  height: 30,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                      size: 16),
+                                )
+                              : const Icon(Icons.person,
+                                  color: Colors.white, size: 16),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 16,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w400,
+                          color: AppColors.black,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                   
-                    Container(
-                      width: 30, height: 30,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlue,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: const Icon(Icons.person, color: Colors.white, size: 16),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(label,
-                      style: TextStyle(
-                        fontFamily: AppFonts.darkerGrotesque,
-                        fontSize: 16,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                        color: AppColors.black,
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ),
-          );
-        }).toList(),
-      ),
-    ],
-  );
-}
-
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
   void _showDatePicker() {
     showModalBottomSheet(
@@ -802,40 +943,38 @@ class _CreateTaskBottomSheetState extends State<CreateTaskBottomSheet> {
           });
         },
       ),
-    ); 
+    );
   }
 
   void _createTask() async {
-  if (_titleController.text.trim().isEmpty || _selectedDate == null) return;
+    if (_titleController.text.trim().isEmpty || _selectedDate == null) return;
 
-  final localNoon = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, 12);
-  final dueUtc = localNoon.toUtc();
+    final localNoon = DateTime(
+        _selectedDate!.year, _selectedDate!.month, _selectedDate!.day, 12);
+    final dueUtc = localNoon.toUtc();
 
-  final req = TaskCreateReq(
-    name: _titleController.text.trim(),
-    description: _descriptionController.text.trim().isEmpty
-        ? null
-        : _descriptionController.text.trim(),
-    assignedTo: _selectedAssigneeId,     
-    recurrence: Recurrence.NONE,
-    nextDueDateUtc: dueUtc,
-    icon: iconEnumFromAsset(_selectedIcon),
-  );
-
-  try {
-    await widget.onSubmit(req);
-    if (!mounted) return;
-    Navigator.pop(context);
-  } catch (_) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Failed to create task')),
+    final req = TaskCreateReq(
+      name: _titleController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
+      assignedTo: _selectedAssigneeId,
+      recurrence: Recurrence.NONE,
+      nextDueDateUtc: dueUtc,
+      icon: iconEnumFromAsset(_selectedIcon),
     );
+
+    try {
+      await widget.onSubmit(req);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to create task')),
+      );
+    }
   }
-}
-
-
-
 }
 
 class CalendarBottomSheet extends StatefulWidget {
@@ -884,7 +1023,8 @@ class _CalendarBottomSheetState extends State<CalendarBottomSheet> {
           GestureDetector(
             onTap: () {
               setState(() {
-                _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
+                _currentMonth =
+                    DateTime(_currentMonth.year, _currentMonth.month - 1);
               });
             },
             child: const Icon(
@@ -905,7 +1045,8 @@ class _CalendarBottomSheetState extends State<CalendarBottomSheet> {
           GestureDetector(
             onTap: () {
               setState(() {
-                _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
+                _currentMonth =
+                    DateTime(_currentMonth.year, _currentMonth.month + 1);
               });
             },
             child: const Icon(
@@ -941,8 +1082,10 @@ class _CalendarBottomSheetState extends State<CalendarBottomSheet> {
   }
 
   Widget _buildCalendarGrid() {
-    final firstDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month, 1);
-    final lastDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+    final firstDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final lastDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
     final firstWeekday = firstDayOfMonth.weekday % 7;
     final daysInMonth = lastDayOfMonth.day;
 
@@ -957,7 +1100,7 @@ class _CalendarBottomSheetState extends State<CalendarBottomSheet> {
       itemCount: firstWeekday + daysInMonth,
       itemBuilder: (context, index) {
         if (index < firstWeekday) {
-          return Container(); 
+          return Container();
         }
 
         final day = index - firstWeekday + 1;
@@ -998,10 +1141,20 @@ class _CalendarBottomSheetState extends State<CalendarBottomSheet> {
 
   String _getMonthName(int month) {
     const monthNames = [
-      '', 'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      '',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
     ];
     return monthNames[month];
   }
 }
-

@@ -44,7 +44,11 @@ class SharedBottomNav extends StatelessWidget {
         screen = const BillsScreen();
         break;
       case 3:
-        screen = const ChatScreen();
+       if (roomId != null && userId != null) {
+    screen = ChatScreen(roomId: roomId!, userId: userId!);
+  } else {
+    screen = const _ChatGate(); // will fetch me + my room, then push Chat
+  }
         break;
       case 4: 
         if (roomId != null && userId != null) {
@@ -188,5 +192,62 @@ class _TasksGateState extends State<_TasksGate> {
     );
   }
 }
+
+class _ChatGate extends StatefulWidget {
+  const _ChatGate({Key? key}) : super(key: key);
+
+  @override
+  State<_ChatGate> createState() => _ChatGateState();
+}
+
+class _ChatGateState extends State<_ChatGate> {
+  final _api = ApiClient.dev();
+
+  @override
+  void initState() {
+    super.initState();
+    _go();
+  }
+
+  Future<void> _go() async {
+    try {
+      final auth = AuthApi(_api);
+      final roomApi = RoomApi(_api);
+
+      final me = await auth.getMe();
+      final myRoom = await roomApi.getMyRoom();
+      final roomId = myRoom.room?.id;
+
+      if (!mounted) return;
+      if (roomId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No room yet — create or join first')),
+        );
+        Navigator.pop(context);
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId, userId: me.id)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open Chat: $e')),
+      );
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.white,
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
 
 
