@@ -43,4 +43,8 @@ class MessageResponse {
         attachmentUrls:
             (j['attachmentUrls'] as List? ?? []).map((e) => e.toString()).toList(),
       );
+
+      
 }
+
+

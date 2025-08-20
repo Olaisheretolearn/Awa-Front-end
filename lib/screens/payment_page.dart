@@ -2,11 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
+import '../api/client.dart';
+import '../api/room_api.dart';
+import '../utils/url_utils.dart';
+import '../api/bills_api.dart';
+import '../api/bills_models.dart';
 
 class PaymentPage extends StatefulWidget {
   final List<String> selectedItems;
-  
-  const PaymentPage({Key? key, required this.selectedItems}) : super(key: key);
+  final String roomId;
+  final String userId;
+
+  const PaymentPage({
+    Key? key,
+    required this.selectedItems,
+    required this.roomId,
+    required this.userId,
+  })  : super(key: key);
 
   @override
   _PaymentPageState createState() => _PaymentPageState();
@@ -16,60 +28,150 @@ class _PaymentPageState extends State<PaymentPage> {
   TextEditingController _priceController = TextEditingController();
   double totalAmount = 0.0;
   bool hasPhoto = false;
-  
-  
-  // Mock roommates data - in real app, this would come from backend
-  List<Roommate> roommates = [
-  Roommate(name: 'Tola', avatar: 'assets/images/avatar_1.png', amount: 0.0, isPayer: true),
-  Roommate(name: 'Sade', avatar: 'assets/images/avatar_2.png', amount: 0.0),
-  Roommate(name: 'Kemi', avatar: 'assets/images/avatar_3.png', amount: 0.0),
-  Roommate(name: 'Bola', avatar: 'assets/images/avatar_4.png', amount: 0.0),
-];
 
+  late final ApiClient _client;
+  late final RoomApi _roomApi;
+  late final BillsApi _billsApi;
+  List<Roommate> roommates = [];
+  bool _loadingMembers = true;
+
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
+  bool _isContract = false;
 
   @override
   void initState() {
     super.initState();
+    _client = ApiClient.dev();
+    _roomApi = RoomApi(_client);
+    _billsApi = BillsApi(_client);
+
     _priceController.text = '\$ 0.00';
-    
-    
+    // sensible defaults
+    _titleController.text = widget.selectedItems.isNotEmpty
+        ? widget.selectedItems.first
+        : 'Shared Expense';
+    _descController.text = widget.selectedItems.join(', ');
+    _loadMembers();
   }
 
-void _calculateSplit() {
-  String text = _priceController.text.replaceAll('\$', '').replaceAll(' ', '');
-  double price = double.tryParse(text) ?? 0.0;
-
-  if (price == 0.0) {
+  Future<void> _loadMembers() async {
+    final ms = await _roomApi.getMembers(widget.roomId);
     setState(() {
-      totalAmount = 0.0;
-      for (var roommate in roommates) {
-        roommate.amount = 0.0;
-      }
+      roommates = ms
+          .map((m) => Roommate(
+                id: m.id,
+                name: m.firstName,
+                avatar: m.avatarImageUrl ?? 'assets/images/avatar_1.png',
+                isPayer: m.id == widget.userId,
+              ))
+          .toList();
+      _loadingMembers = false;
     });
+  }
+
+
+
+
+  Future<void> _createInvoice() async {
+  final text = _priceController.text.replaceAll('\$', '').replaceAll(' ', '');
+  final price = double.tryParse(text) ?? 0.0;
+  if (price <= 0 || roommates.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Enter an amount and load members')),
+    );
     return;
   }
 
-  setState(() {
-    totalAmount = price;
+  _calculateSplit();
 
-    int totalRoommates = roommates.length;
-    Roommate payer = roommates.firstWhere((r) => r.isPayer);
-    int othersCount = totalRoommates - 1;
+  final payer =
+      roommates.firstWhere((r) => r.isPayer, orElse: () => roommates.first);
+  final others = roommates.where((r) => !r.isPayer).map((r) => r.id).toList();
 
-    double sharePerPerson = price / totalRoommates;
 
-    for (var roommate in roommates) {
-      if (roommate.isPayer) {
-        // The payer "pays" the full amount, but is owed by others
-        roommate.amount = price - sharePerPerson;
-      } else {
-        roommate.amount = sharePerPerson;
-      }
-    }
-  });
+  final totalRoommates = roommates.length;
+  final perHead = price / totalRoommates;
+  final amountToCollect = perHead * others.length;  
+
+  final name = _titleController.text.trim().isEmpty
+      ? 'Shared Expense'
+      : _titleController.text.trim();
+
+  final desc = _descController.text.trim().isEmpty
+      ? widget.selectedItems.join(', ')
+      : _descController.text.trim();
+
+  final req = BillCreateReq(
+    roomId: widget.roomId,
+    name: name,
+    description: desc,
+    amount: amountToCollect,           
+    dueDate: DateTime.now().toUtc().add(const Duration(days: 7)),
+    paidByUserId: widget.userId,
+    splitAmongUserIds: others,         
+    isContract: _isContract,
+  );
+
+  try {
+    await _billsApi.create(widget.roomId, req);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Invoice created and sent ✅")),
+    );
+    Navigator.pop(context, true);
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Could not create invoice: $e')),
+    );
+  }
 }
 
 
+  ImageProvider _avatarProvider(String path) {
+    if (path.startsWith('http') || path.startsWith('/')) {
+      return NetworkImage(absoluteUrl(path));
+    }
+    return AssetImage(path);
+  }
+
+  // Mock roommates data - in real app, this would come from backend
+
+  void _calculateSplit() {
+    String text =
+        _priceController.text.replaceAll('\$', '').replaceAll(' ', '');
+    double price = double.tryParse(text) ?? 0.0;
+
+    if (price == 0.0) {
+      setState(() {
+        totalAmount = 0.0;
+        for (var roommate in roommates) {
+          roommate.amount = 0.0;
+        }
+      });
+      return;
+    }
+
+    setState(() {
+      totalAmount = price;
+
+      int totalRoommates = roommates.length;
+      Roommate payer = roommates.firstWhere((r) => r.isPayer);
+      int othersCount = totalRoommates - 1;
+
+      double sharePerPerson = price / totalRoommates;
+
+      for (var roommate in roommates) {
+        if (roommate.isPayer) {
+          // The payer "pays" the full amount, but is owed by others
+          roommate.amount = price - sharePerPerson;
+        } else {
+          roommate.amount = sharePerPerson;
+        }
+      }
+    });
+  }
 
   void _updateRoommateAmount(int index, double newAmount) {
     setState(() {
@@ -77,14 +179,14 @@ void _calculateSplit() {
     });
   }
 
-
   void _showPermissionDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Photo Permission Required'),
-          content: Text('This app needs access to your photos to upload receipts.'),
+          content:
+              Text('This app needs access to your photos to upload receipts.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -93,7 +195,6 @@ void _calculateSplit() {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-
               },
               child: Text('Settings'),
             ),
@@ -145,30 +246,32 @@ void _calculateSplit() {
             ],
           ),
           SizedBox(height: 12),
-          ...widget.selectedItems.map((item) => Padding(
-            padding: EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text(
-                  item,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontFamily: AppFonts.darkerGrotesque,
-                  ),
-                ),
-              ],
-            ),
-          )).toList(),
+          ...widget.selectedItems
+              .map((item) => Padding(
+                    padding: EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          item,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: AppFonts.darkerGrotesque,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ))
+              .toList(),
         ],
       ),
     );
@@ -176,7 +279,7 @@ void _calculateSplit() {
 
   Widget _buildPaidBySection() {
     Roommate payer = roommates.firstWhere((r) => r.isPayer);
-    
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: EdgeInsets.all(16),
@@ -207,7 +310,7 @@ void _calculateSplit() {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundImage: AssetImage(payer.avatar),
+                  backgroundImage: _avatarProvider(payer.avatar),
                 ),
                 SizedBox(width: 12),
                 Expanded(
@@ -242,7 +345,7 @@ void _calculateSplit() {
     // Check if we need to use grid layout (more than 4 people excluding payer)
     List<Roommate> nonPayers = roommates.where((r) => !r.isPayer).toList();
     bool useGridLayout = nonPayers.length > 4;
-    
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: EdgeInsets.all(16),
@@ -263,73 +366,42 @@ void _calculateSplit() {
             ),
           ),
           SizedBox(height: 16),
-          useGridLayout ? _buildGridLayout(nonPayers) : _buildListLayout(nonPayers),
+          useGridLayout
+              ? _buildGridLayout(nonPayers)
+              : _buildListLayout(nonPayers),
         ],
       ),
     );
   }
 
-Widget _buildCreateInvoiceButton() {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-    child: SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _createInvoice,
-        icon: Icon(Icons.receipt_long),
-        label: Text(
-          'Create Invoice',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+  Widget _buildCreateInvoiceButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _createInvoice,
+          icon: Icon(Icons.receipt_long),
+          label: Text(
+            'Create Invoice',
+            style: TextStyle(
+              fontFamily: AppFonts.darkerGrotesque,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
           ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryYellow,
-          foregroundColor: Colors.black,
-          padding: EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryYellow,
+            foregroundColor: Colors.black,
+            padding: EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
-
-
-Future<void> _createInvoice() async {
-  Roommate payer = roommates.firstWhere((r) => r.isPayer);
-  DateTime now = DateTime.now();
-
-  Map<String, dynamic> invoice = {
-    "title": "Shared Expense",
-    "total": totalAmount,
-    "paidBy": payer.name,
-    "date": now.toIso8601String(),
-    "splits": roommates
-        .where((r) => !r.isPayer)
-        .map((r) => {
-              "name": r.name,
-              "owes": r.amount,
-            })
-        .toList(),
-  };
-
-  // Save to database or print for now
-  print(invoice); 
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text("Invoice created and sent to housemates' Bills")),
-  );
-
-   Navigator.pop(context, true);
-
- 
-}
-
-
+    );
+  }
 
   Widget _buildListLayout(List<Roommate> nonPayers) {
     return Column(
@@ -337,7 +409,7 @@ Future<void> _createInvoice() async {
         int index = entry.key;
         Roommate roommate = entry.value;
         int originalIndex = roommates.indexOf(roommate);
-        
+
         return Container(
           margin: EdgeInsets.only(bottom: 8),
           padding: EdgeInsets.all(12),
@@ -349,7 +421,7 @@ Future<void> _createInvoice() async {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: AssetImage(roommate.avatar),
+                backgroundImage: _avatarProvider(roommate.avatar),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -363,46 +435,45 @@ Future<void> _createInvoice() async {
                   ),
                 ),
               ),
-            Column(
-  crossAxisAlignment: CrossAxisAlignment.end,
-  children: [
-Column(
-  crossAxisAlignment: CrossAxisAlignment.end,
-  children: [
-    Container(
-      width: 80,
-      padding: EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.primaryBlue),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Center(
-        child: Text(
-          '\$${roommate.amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            color: AppColors.primaryBlue,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            fontFamily: AppFonts.darkerGrotesque,
-          ),
-        ),
-      ),
-    ),
-    SizedBox(height: 4),
-    Text(
-      'Owes ${roommates.firstWhere((r) => r.isPayer).name}',
-      style: TextStyle(
-        fontSize: 12,
-        color: Colors.red[700],
-        fontWeight: FontWeight.w500,
-        fontFamily: AppFonts.darkerGrotesque,
-      ),
-    ),
-  ],
-),
-  ],
-),
-
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        width: 80,
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.primaryBlue),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '\$${roommate.amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: AppColors.primaryBlue,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: AppFonts.darkerGrotesque,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Owes ${roommates.firstWhere((r) => r.isPayer).name}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red[700],
+                          fontWeight: FontWeight.w500,
+                          fontFamily: AppFonts.darkerGrotesque,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -424,7 +495,7 @@ Column(
       itemBuilder: (context, index) {
         Roommate roommate = nonPayers[index];
         int originalIndex = roommates.indexOf(roommate);
-        
+
         return Container(
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -435,7 +506,11 @@ Column(
             children: [
               CircleAvatar(
                 radius: 12,
-                backgroundImage: AssetImage(roommate.avatar),
+                backgroundImage: _avatarProvider(roommate.avatar),
+              ),
+              CircleAvatar(
+                radius: 12,
+                backgroundImage: _avatarProvider(roommate.avatar),
               ),
               SizedBox(width: 6),
               Expanded(
@@ -468,16 +543,21 @@ Column(
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: BorderSide(color: AppColors.primaryBlue),
+                            borderSide:
+                                BorderSide(color: AppColors.primaryBlue),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: BorderSide(color: AppColors.primaryBlue, width: 1.5),
+                            borderSide: BorderSide(
+                                color: AppColors.primaryBlue, width: 1.5),
                           ),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 2, vertical: 2),
                         ),
                         onChanged: (value) {
-                          double newAmount = double.tryParse(value.replaceAll('\$', '')) ?? 0.0;
+                          double newAmount =
+                              double.tryParse(value.replaceAll('\$', '')) ??
+                                  0.0;
                           _updateRoommateAmount(originalIndex, newAmount);
                         },
                       ),
@@ -494,6 +574,14 @@ Column(
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingMembers) {
+      return const Scaffold(
+        body: SafeArea(
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: SafeArea(
@@ -503,10 +591,8 @@ Column(
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-  color: AppColors.primaryBlue,
-),
-
-              
+                color: AppColors.primaryBlue,
+              ),
               child: Stack(
                 children: [
                   // Decorative elements
@@ -546,7 +632,8 @@ Column(
                             onTap: () => Navigator.pop(context),
                             child: Row(
                               children: [
-                                Icon(Icons.refresh, color: Colors.white, size: 20),
+                                Icon(Icons.refresh,
+                                    color: Colors.white, size: 20),
                                 SizedBox(width: 4),
                                 Text(
                                   'Cancel',
@@ -570,29 +657,30 @@ Column(
                             ),
                           ),
                           ElevatedButton(
-  onPressed: _calculateSplit,
-  style: ElevatedButton.styleFrom(
-    backgroundColor: AppColors.primaryYellow,
-    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(8),
-    ),
-    elevation: 0,
-  ),
-  child: Text(
-    'Split',
-    style: TextStyle(
-      color: Colors.black,
-      fontSize: 14,
-      fontWeight: FontWeight.bold,
-      fontFamily: AppFonts.darkerGrotesque,
-    ),
-  ),
-),
+                            onPressed: _calculateSplit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryYellow,
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Split',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: AppFonts.darkerGrotesque,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       SizedBox(height: 20),
-                      
+
                       // Amount input
                       Container(
                         width: double.infinity,
@@ -605,9 +693,11 @@ Column(
                             fontFamily: AppFonts.darkerGrotesque,
                           ),
                           textAlign: TextAlign.center,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[\d\.\$\s]')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[\d\.\$\s]')),
                             _DollarTextInputFormatter(),
                           ],
                           decoration: InputDecoration(
@@ -622,12 +712,99 @@ Column(
                           ),
                         ),
                       ),
-                      
+
                       SizedBox(height: 20),
-                      
+
+                      // Bill name
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: TextField(
+                          controller: _titleController,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontFamily: AppFonts.darkerGrotesque,
+                          ),
+                          decoration: InputDecoration(
+                            icon: const Icon(Icons.edit,
+                                color: Colors.white, size: 20),
+                            hintText: 'Bill name (e.g. Water bill)',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 16,
+                              fontFamily: AppFonts.darkerGrotesque,
+                            ),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+
+// Description (multiline)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: TextField(
+                          controller: _descController,
+                          maxLines: 3,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: AppFonts.darkerGrotesque,
+                          ),
+                          decoration: InputDecoration(
+                            icon: const Icon(Icons.notes,
+                                color: Colors.white, size: 20),
+                            hintText: 'Description (optional)',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 14,
+                              fontFamily: AppFonts.darkerGrotesque,
+                            ),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+
+// Save to Contracts toggle
+                      InkWell(
+                        onTap: () => setState(() => _isContract = !_isContract),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _isContract,
+                              onChanged: (v) =>
+                                  setState(() => _isContract = v ?? false),
+                              activeColor: AppColors.primaryYellow,
+                              checkColor: Colors.black,
+                              side: const BorderSide(color: Colors.white),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Save to Contracts',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontFamily: AppFonts.darkerGrotesque,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                       // Attach Photo
                       GestureDetector(
-                 
                         child: Container(
                           width: double.infinity,
                           padding: EdgeInsets.all(16),
@@ -637,7 +814,8 @@ Column(
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                              Icon(Icons.camera_alt,
+                                  color: Colors.white, size: 20),
                               SizedBox(width: 12),
                               Text(
                                 hasPhoto ? 'Photo Attached' : 'Upload Photo',
@@ -649,7 +827,8 @@ Column(
                               ),
                               if (hasPhoto) ...[
                                 Spacer(),
-                                Icon(Icons.check_circle, color: AppColors.primaryYellow, size: 20),
+                                Icon(Icons.check_circle,
+                                    color: AppColors.primaryYellow, size: 20),
                               ],
                             ],
                           ),
@@ -660,7 +839,7 @@ Column(
                 ],
               ),
             ),
-            
+
             // Content
             Expanded(
               child: SingleChildScrollView(
@@ -679,7 +858,7 @@ Column(
           ],
         ),
       ),
-      
+
       // Bottom Navigation
       bottomNavigationBar: Container(
         height: 80,
@@ -718,27 +897,27 @@ Column(
           ],
         ),
       ),
-
-      
     );
-
-    
   }
 
   @override
   void dispose() {
     _priceController.dispose();
+    _titleController.dispose();
+    _descController.dispose();
     super.dispose();
   }
 }
 
 class Roommate {
+  final String id;
   final String name;
   final String avatar;
   double amount;
   final bool isPayer;
 
   Roommate({
+    required this.id,
     required this.name,
     required this.avatar,
     this.amount = 0.0,

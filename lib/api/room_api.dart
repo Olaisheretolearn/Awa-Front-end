@@ -53,6 +53,12 @@ Future<List<UserResponse>> getMembers(String roomId) async {
     return data.map(UserResponse.fromJson).toList();
   }
 
+  Future<RoomResponse> getRoom(String roomId) async {
+  final res = await _c.dio.get('/rooms/$roomId');
+  return RoomResponse.fromJson(res.data as Map<String, dynamic>);
+}
+
+
   // GET /api/rooms/{code}
   Future<RoomResponse> getRoomByCode(String code) async {
     final res = await _c.dio.get('/rooms/$code');
