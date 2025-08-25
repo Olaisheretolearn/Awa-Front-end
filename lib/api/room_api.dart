@@ -29,6 +29,8 @@ class RoomApi {
     return MyRoomResponse.fromJson(res.data as Map<String, dynamic>);
   }
 
+  
+
   // POST /api/users/{userId}/join-room
   Future<UserResponse> joinRoom({
     required String userId,

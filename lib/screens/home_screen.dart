@@ -71,6 +71,31 @@ List<BillResponse> get _unpaidBillsForMe {
   ).toList();
 }
 
+List<TaskDto> get _tasksForMe {
+  final uid = _me?.id;
+  if (uid == null) return [];
+  return _tasks.where((t) => t.assignedTo == uid).toList();
+}
+
+List<TaskDto> get _homeTasks {
+  final now = DateTime.now().toUtc();
+  final list = List<TaskDto>.from(_tasksForMe); 
+  list.sort((a, b) {
+    final da = (a.nextDueDateUtc ?? a.createdDateUtc);
+    final db = (b.nextDueDateUtc ?? b.createdDateUtc);
+    return da.compareTo(db);
+  });
+
+  final upcoming = list.where((t) {
+    final d = (t.nextDueDateUtc ?? t.createdDateUtc).toUtc();
+    return d.isAfter(now);
+  }).toList();
+
+  if (upcoming.isNotEmpty) return [upcoming.first]; 
+  return list.take(2).toList();
+}
+
+
 double get _totalOwedByMe {
   final uid = _me?.id;
   if (uid == null) return 0;
@@ -207,15 +232,7 @@ List<TaskDto> get _sortedByDate {
   return list;
 }
 
-List<TaskDto> get _homeTasks {
-  final now = DateTime.now().toUtc();
-  final upcoming = _sortedByDate.where((t) {
-    final d = (t.nextDueDateUtc ?? t.createdDateUtc).toUtc();
-    return d.isAfter(now);
-  }).toList();
-  if (upcoming.isNotEmpty) return [upcoming.first]; 
-  return _sortedByDate.take(2).toList();            
-}
+
 
 
 
@@ -356,15 +373,22 @@ Widget _buildHeader() {
       children: [
         GestureDetector(
           onTap: () {
-            Navigator.of(context).push(PageRouteBuilder(
-              opaque: false,
-              pageBuilder: (_, __, ___) => const SettingsScreen(),
-              transitionsBuilder: (_, a, __, child) {
-                final t = Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero)
-                    .chain(CurveTween(curve: Curves.easeOutCubic));
-                return SlideTransition(position: a.drive(t), child: child);
-              },
-            ));
+           // Where you open Settings (e.g., HomeScreen)
+Navigator.of(context).push(
+  PageRouteBuilder(
+    opaque: false,
+    pageBuilder: (_, __, ___) => SettingsScreen(
+      userId: _userId,   
+      roomId: _roomId,  
+    ),
+    transitionsBuilder: (_, a, __, child) => SlideTransition(
+      position: a.drive(Tween(begin: const Offset(-1,0), end: Offset.zero)
+        .chain(CurveTween(curve: Curves.easeOutCubic))),
+      child: child,
+    ),
+  ),
+);
+
           },
           child: Container(
             width: 40, height: 40,
@@ -567,21 +591,35 @@ Widget _buildUpcomingChores() {
       padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
   }
 
-  if (_homeTasks.isEmpty) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text('Upcoming Chores',
+if (_homeTasks.isEmpty) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: const [
+      Text(
+        'Upcoming Chores',
+        style: TextStyle(
+          fontFamily: AppFonts.darkerGrotesque,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.black,
+        ),
+      ),
+      SizedBox(height: 8),
+      Center(
+        child: Text(
+          'You have no tasks right now.\nMaybe take a stretch, or just vibe ✨',
           style: TextStyle(
             fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.black)),
-        SizedBox(height: 8),
-        Text('You have no tasks right now.\nMaybe take a stretch, or just vibe ✨',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque, fontSize: 14, color: Color(0xFF666666))),
-      ],
-    );
-  }
+            fontSize: 14,
+            color: Color(0xFF666666),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    ],
+  );
+}
+
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
