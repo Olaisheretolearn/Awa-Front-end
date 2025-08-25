@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
+import '../widgets/currency_picker_bottom_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -37,16 +38,20 @@ class SettingsScreen extends StatelessWidget {
                             _buildSettingsItem(
                               icon: Icons.person_add,
                               title: 'Invite a flatmate?',
-                              subtitle: 'Do you want to add a flat member to your household?',
+                              subtitle:
+                                  'Do you want to add a flat member to your household?',
                               color: AppColors.primaryBlue,
-                              onTap: () => _showInviteFlatmateBottomSheet(context),
+                              onTap: () =>
+                                  _showInviteFlatmateBottomSheet(context),
                             ),
                             _buildSettingsItem(
                               icon: Icons.edit,
                               title: 'Edit & Share Expense',
-                              subtitle: 'Customize your expense and Chat More with flatmates',
+                              subtitle:
+                                  'Customize your expense and Chat More with flatmates',
                               color: AppColors.primaryBlue,
-                              onTap: () => _showEditShareExpenseBottomSheet(context),
+                              onTap: () =>
+                                  _showEditShareExpenseBottomSheet(context),
                             ),
                           ]),
                           const SizedBox(height: 20),
@@ -60,6 +65,7 @@ class SettingsScreen extends StatelessWidget {
                               icon: Icons.euro,
                               title: 'Currencies',
                               color: AppColors.primaryBlue,
+                              onTap: () => _showCurrenciesBottomSheet(context),
                             ),
                             _buildSimpleSettingsItem(
                               icon: Icons.thumb_up,
@@ -109,59 +115,59 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-void _showInviteFlatmateBottomSheet(BuildContext context) {
-  final panelWidth = MediaQuery.of(context).size.width * 0.8;
+  void _showInviteFlatmateBottomSheet(BuildContext context) {
+    final panelWidth = MediaQuery.of(context).size.width * 0.8;
 
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black26,
-    isScrollControlled: true,
-    isDismissible: true,  
-    enableDrag: true,     
-    builder: (_) => GestureDetector(
-      onTap: () => Navigator.pop(context), 
-      behavior: HitTestBehavior.opaque,
-      child: Align(
-        alignment: Alignment.bottomLeft,
-        child: GestureDetector(
-          onTap: () {}, 
-          child: SizedBox(
-            width: panelWidth,
-            child: const InviteFlatmateBottomSheet(),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      builder: (_) => GestureDetector(
+        onTap: () => Navigator.pop(context),
+        behavior: HitTestBehavior.opaque,
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: GestureDetector(
+            onTap: () {},
+            child: SizedBox(
+              width: panelWidth,
+              child: const InviteFlatmateBottomSheet(),
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-void _showEditShareExpenseBottomSheet(BuildContext context) {
-  final panelWidth = MediaQuery.of(context).size.width * 0.8;
+  void _showEditShareExpenseBottomSheet(BuildContext context) {
+    final panelWidth = MediaQuery.of(context).size.width * 0.8;
 
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black26,
-    isScrollControlled: true,
-    isDismissible: true,  
-    enableDrag: true,     
-    builder: (_) => GestureDetector(
-      onTap: () => Navigator.pop(context), 
-      behavior: HitTestBehavior.opaque,
-      child: Align(
-        alignment: Alignment.bottomLeft,
-        child: GestureDetector(
-          onTap: () {}, 
-          child: SizedBox(
-            width: panelWidth,
-            child: const EditShareExpenseBottomSheet(),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      builder: (_) => GestureDetector(
+        onTap: () => Navigator.pop(context),
+        behavior: HitTestBehavior.opaque,
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: GestureDetector(
+            onTap: () {},
+            child: SizedBox(
+              width: panelWidth,
+              child: const EditShareExpenseBottomSheet(),
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
@@ -331,35 +337,54 @@ void _showEditShareExpenseBottomSheet(BuildContext context) {
     required IconData icon,
     required String title,
     required Color color,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: color,
-            size: 20,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontFamily: AppFonts.darkerGrotesque,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: color == Colors.red ? Colors.red : AppColors.black,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: color == Colors.red ? Colors.red : AppColors.black,
+                ),
               ),
             ),
+            if (color != Colors.red)
+              const Icon(Icons.arrow_forward_ios,
+                  color: Color(0xFF666666), size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCurrenciesBottomSheet(BuildContext context) {
+    final panelWidth = MediaQuery.of(context).size.width * 0.8;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      isScrollControlled: true,
+      builder: (_) => GestureDetector(
+        onTap: () => Navigator.pop(context),
+        behavior: HitTestBehavior.opaque,
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: GestureDetector(
+            onTap: () {}, // keep taps inside
+            child: SizedBox(
+                width: panelWidth, child: const CurrencyPickerBottomSheet()),
           ),
-          if (color != Colors.red)
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF666666),
-              size: 16,
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -569,11 +594,14 @@ class EditShareExpenseBottomSheet extends StatefulWidget {
   const EditShareExpenseBottomSheet({super.key});
 
   @override
-  State<EditShareExpenseBottomSheet> createState() => _EditShareExpenseBottomSheetState();
+  State<EditShareExpenseBottomSheet> createState() =>
+      _EditShareExpenseBottomSheetState();
 }
 
-class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomSheet> {
-  final TextEditingController _emailController = TextEditingController(text: 'olasunkanmi234@gmail.com');
+class _EditShareExpenseBottomSheetState
+    extends State<EditShareExpenseBottomSheet> {
+  final TextEditingController _emailController =
+      TextEditingController(text: 'olasunkanmi234@gmail.com');
 
   @override
   void dispose() {
@@ -632,7 +660,7 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Title and description
                     const Text(
                       'Settle up',
@@ -655,7 +683,7 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
                       ),
                     ),
                     const SizedBox(height: 8),
-                 
+
                     const SizedBox(height: 40),
 
                     // Email input container
@@ -683,21 +711,19 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
                             ),
                           ),
                           const SizedBox(height: 12),
-                        
                         ],
                       ),
                     ),
 
-                  
                     const Spacer(),
-                        const Text(
-                            'Not the same as sign up email?',
-                            style: TextStyle(
-                              fontFamily: AppFonts.darkerGrotesque,
-                              fontSize: 15,
-                              color: Color.fromARGB(255, 240, 236, 236),
-                            ),
-                          ),
+                    const Text(
+                      'Not the same as sign up email?',
+                      style: TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 15,
+                        color: Color.fromARGB(255, 240, 236, 236),
+                      ),
+                    ),
 
                     // Edit email button
                     SizedBox(

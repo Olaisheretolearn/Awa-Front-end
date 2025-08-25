@@ -7,6 +7,11 @@ import '../api/room_api.dart';
 import '../utils/url_utils.dart';
 import '../api/bills_api.dart';
 import '../api/bills_models.dart';
+import '../widgets/currency_picker_bottom_sheet.dart';
+import '../state/currency_store.dart';
+
+const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
+
 
 class PaymentPage extends StatefulWidget {
   final List<String> selectedItems;
@@ -18,7 +23,7 @@ class PaymentPage extends StatefulWidget {
     required this.selectedItems,
     required this.roomId,
     required this.userId,
-  })  : super(key: key);
+  }) : super(key: key);
 
   @override
   _PaymentPageState createState() => _PaymentPageState();
@@ -28,6 +33,10 @@ class _PaymentPageState extends State<PaymentPage> {
   TextEditingController _priceController = TextEditingController();
   double totalAmount = 0.0;
   bool hasPhoto = false;
+
+  String get _cur => CurrencyStore.symbol.value;
+  String _fmt(num v) => '$_cur${v.toStringAsFixed(2)}';
+  String _sanitize(String s) => s.replaceAll(RegExp(r'[^\d.]'), '');
 
   late final ApiClient _client;
   late final RoomApi _roomApi;
@@ -39,6 +48,8 @@ class _PaymentPageState extends State<PaymentPage> {
   final TextEditingController _descController = TextEditingController();
   bool _isContract = false;
 
+  late final VoidCallback _currencyListener;
+
   @override
   void initState() {
     super.initState();
@@ -46,12 +57,27 @@ class _PaymentPageState extends State<PaymentPage> {
     _roomApi = RoomApi(_client);
     _billsApi = BillsApi(_client);
 
-    _priceController.text = '\$ 0.00';
+    _priceController.text = '${CurrencyStore.symbol.value} 0.00';
+
+    _currencyListener = () {
+      if (!mounted) return;
+      final n = _sanitize(_priceController.text);
+      final next = '${CurrencyStore.symbol.value} ${n.isEmpty ? '0.00' : n}';
+      _priceController.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+      setState(() {});
+    };
+
+    CurrencyStore.symbol.addListener(_currencyListener);
+
     // sensible defaults
     _titleController.text = widget.selectedItems.isNotEmpty
         ? widget.selectedItems.first
         : 'Shared Expense';
     _descController.text = widget.selectedItems.join(', ');
+
     _loadMembers();
   }
 
@@ -70,64 +96,60 @@ class _PaymentPageState extends State<PaymentPage> {
     });
   }
 
-
-
-
   Future<void> _createInvoice() async {
-  final text = _priceController.text.replaceAll('\$', '').replaceAll(' ', '');
-  final price = double.tryParse(text) ?? 0.0;
-  if (price <= 0 || roommates.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Enter an amount and load members')),
+    final text = _sanitize(_priceController.text);
+
+    final price = double.tryParse(_sanitize(_priceController.text)) ?? 0.0;
+    if (price <= 0 || roommates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter an amount and load members')),
+      );
+      return;
+    }
+
+    _calculateSplit();
+
+    final payer =
+        roommates.firstWhere((r) => r.isPayer, orElse: () => roommates.first);
+    final others = roommates.where((r) => !r.isPayer).map((r) => r.id).toList();
+
+    final totalRoommates = roommates.length;
+    final perHead = price / totalRoommates;
+    final amountToCollect = perHead * others.length;
+
+    final name = _titleController.text.trim().isEmpty
+        ? 'Shared Expense'
+        : _titleController.text.trim();
+
+    final desc = _descController.text.trim().isEmpty
+        ? widget.selectedItems.join(', ')
+        : _descController.text.trim();
+
+    final req = BillCreateReq(
+      roomId: widget.roomId,
+      name: name,
+      description: desc,
+      amount: amountToCollect,
+      dueDate: DateTime.now().toUtc().add(const Duration(days: 7)),
+      paidByUserId: widget.userId,
+      splitAmongUserIds: others,
+      isContract: _isContract,
     );
-    return;
+
+    try {
+      await _billsApi.create(widget.roomId, req);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Invoice created and sent ✅")),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create invoice: $e')),
+      );
+    }
   }
-
-  _calculateSplit();
-
-  final payer =
-      roommates.firstWhere((r) => r.isPayer, orElse: () => roommates.first);
-  final others = roommates.where((r) => !r.isPayer).map((r) => r.id).toList();
-
-
-  final totalRoommates = roommates.length;
-  final perHead = price / totalRoommates;
-  final amountToCollect = perHead * others.length;  
-
-  final name = _titleController.text.trim().isEmpty
-      ? 'Shared Expense'
-      : _titleController.text.trim();
-
-  final desc = _descController.text.trim().isEmpty
-      ? widget.selectedItems.join(', ')
-      : _descController.text.trim();
-
-  final req = BillCreateReq(
-    roomId: widget.roomId,
-    name: name,
-    description: desc,
-    amount: amountToCollect,           
-    dueDate: DateTime.now().toUtc().add(const Duration(days: 7)),
-    paidByUserId: widget.userId,
-    splitAmongUserIds: others,         
-    isContract: _isContract,
-  );
-
-  try {
-    await _billsApi.create(widget.roomId, req);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Invoice created and sent ✅")),
-    );
-    Navigator.pop(context, true);
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Could not create invoice: $e')),
-    );
-  }
-}
-
 
   ImageProvider _avatarProvider(String path) {
     if (path.startsWith('http') || path.startsWith('/')) {
@@ -139,9 +161,8 @@ class _PaymentPageState extends State<PaymentPage> {
   // Mock roommates data - in real app, this would come from backend
 
   void _calculateSplit() {
-    String text =
-        _priceController.text.replaceAll('\$', '').replaceAll(' ', '');
-    double price = double.tryParse(text) ?? 0.0;
+    final text = _sanitize(_priceController.text);
+    final price = double.tryParse(_sanitize(_priceController.text)) ?? 0.0;
 
     if (price == 0.0) {
       setState(() {
@@ -325,12 +346,13 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                 ),
                 Text(
-                  '\$${payer.amount.toStringAsFixed(2)}',
+                  _fmt(payer.amount),
                   style: TextStyle(
                     color: AppColors.primaryBlue,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     fontFamily: AppFonts.darkerGrotesque,
+                    fontFamilyFallback: _currencyFallback,
                   ),
                 ),
               ],
@@ -450,12 +472,13 @@ class _PaymentPageState extends State<PaymentPage> {
                         ),
                         child: Center(
                           child: Text(
-                            '\$${roommate.amount.toStringAsFixed(2)}',
-                            style: TextStyle(
+                            _fmt(roommate.amount),
+                            style: const TextStyle(
                               color: AppColors.primaryBlue,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               fontFamily: AppFonts.darkerGrotesque,
+                              fontFamilyFallback: _currencyFallback,
                             ),
                           ),
                         ),
@@ -482,95 +505,107 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _buildGridLayout(List<Roommate> nonPayers) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 2.5,
-      ),
-      itemCount: nonPayers.length,
-      itemBuilder: (context, index) {
-        Roommate roommate = nonPayers[index];
-        int originalIndex = roommates.indexOf(roommate);
+  return GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      childAspectRatio: 2.5,
+    ),
+    itemCount: nonPayers.length,
+    itemBuilder: (context, index) {
+      final roommate = nonPayers[index];
+      final originalIndex = roommates.indexOf(roommate);
 
-        return Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundImage: _avatarProvider(roommate.avatar),
-              ),
-              CircleAvatar(
-                radius: 12,
-                backgroundImage: _avatarProvider(roommate.avatar),
-              ),
-              SizedBox(width: 6),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      roommate.name,
-                      style: TextStyle(
-                        color: Colors.black,
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 12,
+              backgroundImage: _avatarProvider(roommate.avatar),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    roommate.name,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      fontFamily: AppFonts.darkerGrotesque,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    height: 24,
+                    child: TextFormField(
+                      key: ValueKey(
+                        '${roommate.id}-${CurrencyStore.symbol.value}-${roommate.amount.toStringAsFixed(2)}',
+                      ), // rebuild on symbol/amount change
+                      initialValue: _fmt(roommate.amount),
+                      style: const TextStyle(
+                        color: AppColors.primaryBlue,
                         fontSize: 10,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                         fontFamily: AppFonts.darkerGrotesque,
+                        fontFamilyFallback: _currencyFallback,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 2),
-                    Container(
-                      height: 24,
-                      child: TextFormField(
-                        initialValue: '\$${roommate.amount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: AppColors.primaryBlue,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: AppFonts.darkerGrotesque,
+                      textAlign: TextAlign.center,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        // allow digits, dot and spaces (symbol comes from formatter)
+                        FilteringTextInputFormatter.allow(RegExp(r'[\d\.\s]')),
+                        _CurrencyTextInputFormatter(
+                          () => CurrencyStore.symbol.value,
                         ),
-                        textAlign: TextAlign.center,
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            borderSide:
-                                BorderSide(color: AppColors.primaryBlue),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
-                            borderSide: BorderSide(
-                                color: AppColors.primaryBlue, width: 1.5),
-                          ),
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                      ],
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide:
+                              const BorderSide(color: AppColors.primaryBlue),
                         ),
-                        onChanged: (value) {
-                          double newAmount =
-                              double.tryParse(value.replaceAll('\$', '')) ??
-                                  0.0;
-                          _updateRoommateAmount(originalIndex, newAmount);
-                        },
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: const BorderSide(
+                            color: AppColors.primaryBlue,
+                            width: 1.5,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 2,
+                        ),
                       ),
+                      onChanged: (value) {
+                        final n = double.tryParse(_sanitize(value)) ?? 0.0;
+                        _updateRoommateAmount(originalIndex, n);
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -682,34 +717,34 @@ class _PaymentPageState extends State<PaymentPage> {
                       SizedBox(height: 20),
 
                       // Amount input
-                      Container(
-                        width: double.infinity,
-                        child: TextField(
-                          controller: _priceController,
-                          style: TextStyle(
-                            color: Colors.white,
+                      TextField(
+                        controller: _priceController,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w300,
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontFamilyFallback: _currencyFallback,
+                        ),
+                        textAlign: TextAlign.center,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        inputFormatters: [
+                          // Allow digits, dot and spaces (no hardcoded $)
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[\d\.\s]')),
+                          _CurrencyTextInputFormatter(
+                              () => CurrencyStore.symbol.value),
+                        ],
+                        decoration: InputDecoration(
+                          hintText: '$_cur 0.00', // ← dynamic hint
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
                             fontSize: 36,
                             fontWeight: FontWeight.w300,
                             fontFamily: AppFonts.darkerGrotesque,
                           ),
-                          textAlign: TextAlign.center,
-                          keyboardType:
-                              TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'[\d\.\$\s]')),
-                            _DollarTextInputFormatter(),
-                          ],
-                          decoration: InputDecoration(
-                            hintText: '\$ 0.00',
-                            hintStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
-                              fontSize: 36,
-                              fontWeight: FontWeight.w300,
-                              fontFamily: AppFonts.darkerGrotesque,
-                            ),
-                            border: InputBorder.none,
-                          ),
+                          border: InputBorder.none,
                         ),
                       ),
 
@@ -902,6 +937,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   void dispose() {
+    CurrencyStore.symbol.removeListener(_currencyListener); // 👈 important
     _priceController.dispose();
     _titleController.dispose();
     _descController.dispose();
@@ -925,32 +961,23 @@ class Roommate {
   });
 }
 
-class _DollarTextInputFormatter extends TextInputFormatter {
+class _CurrencyTextInputFormatter extends TextInputFormatter {
+  final String Function() symbolProvider;
+  _CurrencyTextInputFormatter(this.symbolProvider);
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final newText = newValue.text;
+    final sym = symbolProvider();
+    final numericText = newValue.text.replaceAll(RegExp(r'[^\d.]'), '');
+    if ('.'.allMatches(numericText).length > 1) return oldValue;
 
-    // Strip out any non-numeric characters (except the dot)
-    String numericText = newText.replaceAll(RegExp(r'[^\d.]'), '');
-
-    // Prevent multiple dots
-    if ('.'.allMatches(numericText).length > 1) {
-      return oldValue;
-    }
-
-    if (numericText.isEmpty) {
-      return TextEditingValue(
-        text: '\$ ',
-        selection: TextSelection.collapsed(offset: 2),
-      );
-    }
-
+    final next = numericText.isEmpty ? '$sym 0.00' : '$sym $numericText';
     return TextEditingValue(
-      text: '\$ $numericText',
-      selection: TextSelection.collapsed(offset: '\$ $numericText'.length),
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
     );
   }
 }
