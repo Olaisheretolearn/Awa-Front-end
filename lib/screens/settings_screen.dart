@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import '../widgets/currency_picker_bottom_sheet.dart';
+import '../screens/create_join_flat_screen.dart';
+import '../api/app_error.dart';
 
 import '../api/client.dart';
 import '../api/auth_api.dart';
@@ -84,6 +86,62 @@ Future<void> _bootstrap() async {
   } catch (e) {
     if (!mounted) return;
     setState(() => _loading = false);
+  }
+}
+
+
+Future<void> _leaveHousehold() async {
+  if (_me == null) return;
+
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Leave household?'),
+      content: const Text(
+        'You’ll lose access to chat, chores, bills, and shopping for this room.'
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context, true),  child: const Text('Leave')),
+      ],
+    ),
+  );
+
+  if (ok != true) return;
+
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+
+  try {
+    await _rooms.leaveRoom(_me!.id); 
+    if (!mounted) return;
+
+   
+    setState(() {
+      _roomCode = null;
+      _me = _me!.copyWith(roomId: null); 
+    });
+
+    // close loader
+    Navigator.of(context).pop();
+
+   
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const CreateJoinFlatScreen()),
+      (route) => false,
+    );
+  } catch (e) {
+    if (!mounted) return;
+    Navigator.of(context).pop();
+
+    final err = mapDioError(e);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(friendlyMessage(err))),
+    );
   }
 }
 
@@ -183,7 +241,7 @@ Future<void> _bootstrap() async {
                                     icon: Icons.logout,
                                     title: 'Leave household',
                                     color: Colors.red,
-                                    onTap: _notImplemented,
+                                    onTap: _leaveHousehold,
                                   ),
                                   _buildSimpleSettingsItem(
                                     icon: Icons.delete,

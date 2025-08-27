@@ -12,14 +12,19 @@ class ApiClient {
 
   factory ApiClient.dev() {
     const envBase = String.fromEnvironment('API_BASE');
-    final base = (envBase.isNotEmpty ? envBase : 'http://127.0.0.1:8080');
+
+    final defaultBase = kReleaseMode
+        ? 'https://awa-pp4u.onrender.com'
+        : 'http://127.0.0.1:8080';
+
+    final base = (envBase.isNotEmpty ? envBase : defaultBase);
 
     final storage = AuthStorage();
     final dio = Dio(
       BaseOptions(
         baseUrl: '$base/api',
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
+        connectTimeout: const Duration(seconds: 100),
+        receiveTimeout: const Duration(seconds: 100),
         headers: {'Content-Type': 'application/json'},
         receiveDataWhenStatusError: true,
       ),
@@ -51,7 +56,8 @@ class ApiClient {
 
     static String get origin {
     const envBase = String.fromEnvironment('API_BASE');
-    return (envBase.isNotEmpty ? envBase : 'http://127.0.0.1:8080');
+    if (envBase.isNotEmpty) return envBase;
+     return kReleaseMode ? 'https://awa-pp4u.onrender.com' : 'http://127.0.0.1:8080';
   }
 
 

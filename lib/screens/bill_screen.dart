@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import '../api/bills_api.dart';
 import '../api/bills_models.dart';
 import '../state/currency_store.dart';
+import '../widgets/exit_app_guard.dart';
 
 const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
 
@@ -155,57 +156,60 @@ class _BillsScreenState extends State<BillsScreen> {
     }
   }
 
-  void _showDebtorActionsSheet(BillResponse bill) {
-    final myShare = _myShareOn(bill);
-    final alreadyNotified =
-        myShare?.status == 'MARKED_PAID' || myShare?.status == 'CONFIRMED';
+void _showDebtorActionsSheet(BillResponse bill) {
+  final myShare = _myShareOn(bill);
+  final alreadyNotified =
+      myShare?.status == 'MARKED_PAID' || myShare?.status == 'CONFIRMED';
 
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(bill.name,
+  showModalBottomSheet(
+    context: context,
+    useSafeArea: true,            
+    isScrollControlled: true,     
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(bill.name,
+              style: const TextStyle(
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700)),
+          if (bill.description.isNotEmpty)
+            const SizedBox(height: 4),
+          if (bill.description.isNotEmpty)
+            Text(bill.description,
                 style: const TextStyle(
                     fontFamily: AppFonts.darkerGrotesque,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700)),
-            if (bill.description.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 12),
-                child: Text(bill.description,
-                    style: const TextStyle(
-                        fontFamily: AppFonts.darkerGrotesque,
-                        fontSize: 14,
-                        color: Color(0xFF666666))),
-              ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: alreadyNotified ? null : () => _notifyPayment(bill),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    fontSize: 14,
+                    color: Color(0xFF666666))),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: alreadyNotified ? null : () => _notifyPayment(bill),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                    alreadyNotified ? 'Already notified' : 'Notify payment'),
               ),
+              child: Text(alreadyNotified ? 'Already notified' : 'Notify payment'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-// My share on a given bill (nullable)
+
+
   BillShare? _myShareOn(BillResponse b) {
     final uid = _userId;
     if (uid == null) return null;
@@ -247,7 +251,9 @@ class _BillsScreenState extends State<BillsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+      return ExitAppGuard(
+    rootOnly: true, // prompt only if this page is at the root
+    child: Scaffold(
       backgroundColor: AppColors.primaryBlue,
       body: SafeArea(
         child: Column(
@@ -298,7 +304,8 @@ class _BillsScreenState extends State<BillsScreen> {
         child: const Icon(Icons.add, color: AppColors.white, size: 32),
       ),
       bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
-    );
+    ),
+  );
   }
 
   Widget _buildHeader() {

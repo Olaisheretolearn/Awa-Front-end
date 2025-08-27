@@ -38,6 +38,28 @@ class UserResponse {
         avatarId: j['avatarId'],
         avatarImageUrl: j['avatarImageUrl'],
       );
+
+       UserResponse copyWith({
+    String? id,
+    String? firstName,
+    String? email,
+    String? createdAt,
+    String? role,
+    String? roomId,
+    String? avatarId,
+    String? avatarImageUrl,
+  }) {
+    return UserResponse(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      email: email ?? this.email,
+      createdAt: createdAt ?? this.createdAt,
+      role: role ?? this.role,
+      roomId: roomId ?? this.roomId,
+      avatarId: avatarId ?? this.avatarId,
+      avatarImageUrl: avatarImageUrl ?? this.avatarImageUrl,
+    );
+  }
 }
 
 

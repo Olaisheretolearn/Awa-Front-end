@@ -13,6 +13,7 @@ import '../api/client.dart';
 import '../api/auth_api.dart';
 import '../api/room_api.dart';
 import '../api/model.dart';
+import 'create_join_flat_screen.dart';
 
 import '../utils/url_utils.dart';
 import 'package:flutter/services.dart';
@@ -249,16 +250,15 @@ List<TaskDto> get _sortedByDate {
     return days[weekday - 1];
   }
 
-  @override
-  Widget build(BuildContext context) {
- if (_bootLoading) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+@override
+Widget build(BuildContext context) {
+  if (_bootLoading) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 
-
-    return Scaffold(
+  return WillPopScope(
+    onWillPop: _onWillPop, // 👈 intercept
+    child: Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
@@ -286,14 +286,146 @@ List<TaskDto> get _sortedByDate {
         ),
       ),
       bottomNavigationBar: SharedBottomNav(
-  currentIndex: 0,
-  roomId: _roomId,
-  userId: _userId,
-),
+        currentIndex: 0, roomId: _roomId, userId: _userId,
+      ),
+    ),
+  );
+}
 
-
-    );
+Future<bool> _onWillPop() async {
+  final shouldExit = await _showExitSheet();
+  if (shouldExit == true) {
+    // Close app on Android; on iOS this will just pop current route (usually no-op on root).
+    await SystemNavigator.pop();
+    return true;
   }
+  return false; 
+}
+
+Future<bool?> _showExitSheet() {
+  HapticFeedback.selectionClick();
+
+  return showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true, 
+    backgroundColor: Colors.transparent, 
+    barrierColor: Colors.black26,
+    builder: (_) {
+      final media = MediaQuery.of(context);
+      final maxHeight = media.size.height * 0.40;
+
+      return SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // drag handle
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6E6E6),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // icon / illustration area (match your style)
+              Container(
+                width: 64, height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.exit_to_app, size: 28, color: AppColors.primaryBlue),
+              ),
+              const SizedBox(height: 16),
+
+              const Text(
+                'Exit Awa?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              const Text(
+                'Are you sure you want to exit the app?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontSize: 14,
+                  color: Color(0xFF666666),
+                  height: 1.3,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primaryBlue),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        'Stay',
+                        style: TextStyle(
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryBlue,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: AppColors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text(
+                        'Exit app',
+                        style: TextStyle(
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+
 
   // Widget _buildHeader() {
   //   return Padding(
@@ -831,7 +963,7 @@ if (_homeTasks.isEmpty) {
 
 // REPLACE _buildExpenses()
 Widget _buildExpenses() {
-  final items = _unpaidBillsForMe..sort((a,b) => a.dueDate.compareTo(b.dueDate));
+  final items = _unpaidBillsForMe..sort((a, b) => a.dueDate.compareTo(b.dueDate));
   final top = items.take(2).toList();
 
   return Column(
@@ -840,10 +972,15 @@ Widget _buildExpenses() {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Your Expenses',
+          const Text(
+            'Your Expenses',
             style: TextStyle(
               fontFamily: AppFonts.darkerGrotesque,
-              fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.black)),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.black,
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const BillsScreen()));
@@ -854,36 +991,52 @@ Widget _buildExpenses() {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            child: const Text('Settle Up',
+            child: const Text(
+              'Settle Up',
               style: TextStyle(
                 fontFamily: AppFonts.darkerGrotesque,
-                fontSize: 14, fontWeight: FontWeight.w600)),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
       const SizedBox(height: 12),
 
-      if (top.isEmpty) ...[
-        const Text(
-          'No upcoming expenses\nBreathe in. Breathe out.\nYour wallet is at peace. (Or maybe offline 😅)',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 14, color: Color(0xFF666666))),
-      ] else ...top.map((b) {
+      if (top.isEmpty) 
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32), // adds breathing room
+          child: Center(
+            child: Text(
+              'No upcoming expenses\nBreathe in. Breathe out.\nYour wallet is at peace. ',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: AppFonts.darkerGrotesque,
+                fontSize: 14,
+                color: Color(0xFF666666),
+              ),
+            ),
+          ),
+        )
+      else ...top.map((b) {
         final my = b.shares.firstWhere(
-          (s) => s.userId == _me!.id, orElse: () => BillShare(userId: '', amount: 0, status: 'CONFIRMED'));
+          (s) => s.userId == _me!.id,
+          orElse: () => BillShare(userId: '', amount: 0, status: 'CONFIRMED'),
+        );
         final d = b.dueDate.toLocal();
-        final date = '${_mon(d.month)}\n${d.day.toString().padLeft(2,'0')}';
+        final date = '${_mon(d.month)}\n${d.day.toString().padLeft(2, '0')}';
         final amount = my.amount.toStringAsFixed(2);
         final whoPaid = (b.paidByUserId == _me!.id) ? 'You paid' : 'Someone else paid';
-        final icon = '💸';
+        const icon = '💸';
+
         return GestureDetector(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BillsScreen())),
           child: _buildBillItem(
             id: b.id,
             date: date,
             title: b.name,
-            subtitle: 'You owe \$${amount}',
+            subtitle: 'You owe \$$amount',
             amount: '\$${b.amount.toStringAsFixed(2)}',
             amountSubtitle: whoPaid,
             icon: icon,
@@ -893,6 +1046,7 @@ Widget _buildExpenses() {
     ],
   );
 }
+
 
 
   Widget _buildBillItem({

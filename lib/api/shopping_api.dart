@@ -77,12 +77,10 @@ class ShoppingApi {
 
       return ShoppingItemDto.fromJson(res.data);
     } on DioException catch (e) {
-      // Log everything helpful
+   
       final code = e.response?.statusCode;
       final text = e.response?.data;
-      // This print helps you see the actual server message in the console
-      // (leave it in while debugging)
-      // ignore: avoid_print
+   
       print('Create failed ($code): $text');
       rethrow;
     }

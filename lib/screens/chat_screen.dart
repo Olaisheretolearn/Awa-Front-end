@@ -10,6 +10,7 @@ import '../api/model.dart';
 import '../api/room_api.dart';
 import '../utils/url_utils.dart';
 import 'package:flutter/services.dart';
+import '../widgets/exit_app_guard.dart';
 
 class ChatScreen extends StatefulWidget {
   final String roomId;
@@ -256,7 +257,9 @@ Future<void> _initMeAndLoad() async {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ExitAppGuard(
+    rootOnly: true, 
+    child: Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
@@ -289,7 +292,8 @@ Future<void> _initMeAndLoad() async {
         userId: _userId,
         shouldPop: false,
       ),
-    );
+    ),
+  );
   }
 
 

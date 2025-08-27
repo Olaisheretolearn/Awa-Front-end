@@ -9,6 +9,7 @@ import '../api/icon_map.dart';
 import '../api/room_api.dart';
 import '../api/model.dart';
 import '../utils/url_utils.dart';
+import '../widgets/exit_app_guard.dart';
 
 class TasksScreen extends StatefulWidget {
   final String roomId;
@@ -101,8 +102,10 @@ class _TasksScreenState extends State<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primaryBlue,
+      return ExitAppGuard(
+    rootOnly: true, 
+    child: Scaffold(
+     backgroundColor: AppColors.primaryBlue,
       body: SafeArea(
         child: Column(
           children: [
@@ -120,7 +123,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     : _error != null
                         ? Center(child: Text(_error!))
                         : _tasks.isEmpty
-                            ? _buildEmpty() // <— matches your first screenshot
+                            ? _buildEmpty() 
                             : _buildTasksList(),
               ),
             ),
@@ -137,7 +140,8 @@ class _TasksScreenState extends State<TasksScreen> {
   roomId: widget.roomId,
   userId: widget.userId,
 ),
-    );
+    ),
+  );
   }
 
   Widget _buildEmpty() => const Center(
