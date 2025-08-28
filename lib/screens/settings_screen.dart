@@ -11,11 +11,12 @@ import '../api/auth_api.dart';
 import '../api/room_api.dart';
 import '../api/model.dart';
 import '../utils/url_utils.dart';
+import 'signin_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-    final String? userId;
+  final String? userId;
   final String? roomId;
- const SettingsScreen({super.key, this.userId, this.roomId});
+  const SettingsScreen({super.key, this.userId, this.roomId});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -39,113 +40,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _bootstrap();
   }
 
-Future<void> _bootstrap() async {
-  try {
-
-    UserResponse me = (widget.userId != null)
-        ? await _auth.getUserById(widget.userId!)
-        : await _auth.getMe();
-
-    String? avatarUrl = me.avatarImageUrl;
-    if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      avatarUrl = absoluteUrl(avatarUrl); // <— prepend base url
-    } else if (me.avatarId != null && me.avatarId!.isNotEmpty) {
-      avatarUrl = absoluteUrl("/avatars/${me.avatarId!.toLowerCase()}.png");
-    }
-
-    final resolvedMe = UserResponse(
-      id: me.id,
-      firstName: me.firstName,
-      email: me.email,
-      createdAt: me.createdAt,
-      role: me.role,
-      roomId: me.roomId,
-      avatarId: me.avatarId,
-      avatarImageUrl: avatarUrl,
-    );
-
-    
-    setState(() {
-      _me = resolvedMe;
-      _loading = false;
-    });
-
-    String? code;
+  Future<void> _bootstrap() async {
     try {
-      final myRoom = await _rooms.getMyRoom();
-      code = myRoom.room?.code;
-    } catch (_) {
-  
-    }
+      UserResponse me = (widget.userId != null)
+          ? await _auth.getUserById(widget.userId!)
+          : await _auth.getMe();
 
-    if (!mounted) return;
-    if (code != null && code.isNotEmpty) {
-      setState(() => _roomCode = code);
-    }
+      String? avatarUrl = me.avatarImageUrl;
+      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+        avatarUrl = absoluteUrl(avatarUrl); // <— prepend base url
+      } else if (me.avatarId != null && me.avatarId!.isNotEmpty) {
+        avatarUrl = absoluteUrl("/avatars/${me.avatarId!.toLowerCase()}.png");
+      }
 
-  } catch (e) {
-    if (!mounted) return;
-    setState(() => _loading = false);
+      final resolvedMe = UserResponse(
+        id: me.id,
+        firstName: me.firstName,
+        email: me.email,
+        createdAt: me.createdAt,
+        role: me.role,
+        roomId: me.roomId,
+        avatarId: me.avatarId,
+        avatarImageUrl: avatarUrl,
+      );
+
+      setState(() {
+        _me = resolvedMe;
+        _loading = false;
+      });
+
+      String? code;
+      try {
+        final myRoom = await _rooms.getMyRoom();
+        code = myRoom.room?.code;
+      } catch (_) {}
+
+      if (!mounted) return;
+      if (code != null && code.isNotEmpty) {
+        setState(() => _roomCode = code);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
-}
 
+  Future<void> _leaveHousehold() async {
+    if (_me == null) return;
 
-Future<void> _leaveHousehold() async {
-  if (_me == null) return;
-
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text('Leave household?'),
-      content: const Text(
-        'You’ll lose access to chat, chores, bills, and shopping for this room.'
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Leave household?'),
+        content: const Text(
+            'You’ll lose access to chat, chores, bills, and shopping for this room.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Leave')),
+        ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(context, true),  child: const Text('Leave')),
-      ],
-    ),
-  );
-
-  if (ok != true) return;
-
-
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
-  );
-
-  try {
-    await _rooms.leaveRoom(_me!.id); 
-    if (!mounted) return;
-
-   
-    setState(() {
-      _roomCode = null;
-      _me = _me!.copyWith(roomId: null); 
-    });
-
-    // close loader
-    Navigator.of(context).pop();
-
-   
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const CreateJoinFlatScreen()),
-      (route) => false,
     );
-  } catch (e) {
-    if (!mounted) return;
-    Navigator.of(context).pop();
 
-    final err = mapDioError(e);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(friendlyMessage(err))),
+    if (ok != true) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      await _rooms.leaveRoom(_me!.id);
+      if (!mounted) return;
+
+      setState(() {
+        _roomCode = null;
+        _me = _me!.copyWith(roomId: null);
+      });
+
+      // close loader
+      Navigator.of(context).pop();
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const CreateJoinFlatScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      final err = mapDioError(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyMessage(err))),
+      );
+    }
   }
-}
-
-
 
   void _notImplemented() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -159,7 +152,6 @@ Future<void> _leaveHousehold() async {
       backgroundColor: Colors.transparent,
       body: Row(
         children: [
-       
           Container(
             width: MediaQuery.of(context).size.width * 0.8,
             height: MediaQuery.of(context).size.height,
@@ -220,7 +212,8 @@ Future<void> _leaveHousehold() async {
                                     icon: Icons.euro,
                                     title: 'Currencies',
                                     color: AppColors.primaryBlue,
-                                    onTap: () => _showCurrenciesBottomSheet(context),
+                                    onTap: () =>
+                                        _showCurrenciesBottomSheet(context),
                                   ),
                                   _buildSimpleSettingsItem(
                                     icon: Icons.thumb_up,
@@ -229,10 +222,21 @@ Future<void> _leaveHousehold() async {
                                     onTap: _notImplemented,
                                   ),
                                   _buildSimpleSettingsItem(
-                                    icon: Icons.article,
-                                    title: 'News',
-                                    color: AppColors.primaryBlue,
-                                    onTap: _notImplemented,
+                                    icon: Icons.logout,
+                                    title: 'Log Out',
+                                    color: Colors.red,
+                                    onTap: () async {
+                                      await _auth.signOut();
+
+                                      if (!mounted) return;
+
+                                      Navigator.of(context).pushAndRemoveUntil(
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const SignInScreen()),
+                                        (route) => false,
+                                      );
+                                    },
                                   ),
                                 ]),
                                 const SizedBox(height: 20),
@@ -260,7 +264,6 @@ Future<void> _leaveHousehold() async {
               ),
             ),
           ),
-          
           Expanded(
             child: GestureDetector(
               onTap: () => Navigator.pop(context),
@@ -271,8 +274,6 @@ Future<void> _leaveHousehold() async {
       ),
     );
   }
-
-
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
@@ -299,45 +300,52 @@ Future<void> _leaveHousehold() async {
   }
 
   Widget _buildUserProfile() {
-  final name = (_me?.firstName.isNotEmpty ?? false) ? _me!.firstName : '—';
-  final email = _me?.email ?? '—';
-  final avatarUrl = _me?.avatarImageUrl;
+    final name = (_me?.firstName.isNotEmpty ?? false) ? _me!.firstName : '—';
+    final email = _me?.email ?? '—';
+    final avatarUrl = _me?.avatarImageUrl;
 
-  return Row(
-    children: [
-      Container(
-        width: 50, height: 50,
-        decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primaryBlue),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(25),
-          child: (avatarUrl != null && avatarUrl.isNotEmpty)
-              ? Image.network(
-                  absoluteUrl(avatarUrl),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Image.asset('assets/images/avatar_1.png', fit: BoxFit.cover),
-                )
-              : Image.asset('assets/images/avatar_1.png', fit: BoxFit.cover),
+    return Row(
+      children: [
+        Container(
+          width: 50,
+          height: 50,
+          decoration: const BoxDecoration(
+              shape: BoxShape.circle, color: AppColors.primaryBlue),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                ? Image.network(
+                    absoluteUrl(avatarUrl),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                        'assets/images/avatar_1.png',
+                        fit: BoxFit.cover),
+                  )
+                : Image.asset('assets/images/avatar_1.png', fit: BoxFit.cover),
+          ),
         ),
-      ),
-      const SizedBox(width: 16),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(name, style: const TextStyle(
-              fontFamily: AppFonts.darkerGrotesque, fontSize: 20,
-              fontWeight: FontWeight.w600, color: AppColors.black)),
-            Text(email, style: const TextStyle(
-              fontFamily: AppFonts.darkerGrotesque, fontSize: 14,
-              color: Color(0xFF666666))),
-          ],
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name,
+                  style: const TextStyle(
+                      fontFamily: AppFonts.darkerGrotesque,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.black)),
+              Text(email,
+                  style: const TextStyle(
+                      fontFamily: AppFonts.darkerGrotesque,
+                      fontSize: 14,
+                      color: Color(0xFF666666))),
+            ],
+          ),
         ),
-      ),
-    ],
-  );
-}
-
+      ],
+    );
+  }
 
   Widget _buildSettingsSection(List<Widget> items) {
     return Container(
@@ -407,7 +415,8 @@ Future<void> _leaveHousehold() async {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Color(0xFF666666), size: 16),
+            const Icon(Icons.arrow_forward_ios,
+                color: Color(0xFF666666), size: 16),
           ],
         ),
       ),
@@ -440,7 +449,8 @@ Future<void> _leaveHousehold() async {
               ),
             ),
             if (color != Colors.red)
-              const Icon(Icons.arrow_forward_ios, color: Color(0xFF666666), size: 16),
+              const Icon(Icons.arrow_forward_ios,
+                  color: Color(0xFF666666), size: 16),
           ],
         ),
       ),
@@ -460,7 +470,7 @@ Future<void> _leaveHousehold() async {
         child: Align(
           alignment: Alignment.bottomLeft,
           child: GestureDetector(
-            onTap: () {}, 
+            onTap: () {},
             child: SizedBox(
               width: panelWidth,
               child: const CurrencyPickerBottomSheet(),
@@ -477,22 +487,38 @@ Future<void> _leaveHousehold() async {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            TextButton(onPressed: _notImplemented, child: const Text('Credits',
-                style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 12, color: AppColors.primaryBlue))),
-            TextButton(onPressed: _notImplemented, child: const Text('Terms and Conditions',
-                style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 12, color: AppColors.primaryBlue))),
-            TextButton(onPressed: _notImplemented, child: const Text('Data privacy',
-                style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 12, color: AppColors.primaryBlue))),
+            TextButton(
+                onPressed: _notImplemented,
+                child: const Text('Credits',
+                    style: TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 12,
+                        color: AppColors.primaryBlue))),
+            TextButton(
+                onPressed: _notImplemented,
+                child: const Text('Terms and Conditions',
+                    style: TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 12,
+                        color: AppColors.primaryBlue))),
+            TextButton(
+                onPressed: _notImplemented,
+                child: const Text('Data privacy',
+                    style: TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 12,
+                        color: AppColors.primaryBlue))),
           ],
         ),
         const SizedBox(height: 10),
         const Text('Version 1.0.0',
-            style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 12, color: Color(0xFF666666))),
+            style: TextStyle(
+                fontFamily: AppFonts.darkerGrotesque,
+                fontSize: 12,
+                color: Color(0xFF666666))),
       ],
     );
   }
-
-
 
   void _showInviteFlatmateBottomSheet(BuildContext context, {String? code}) {
     final panelWidth = MediaQuery.of(context).size.width * 0.8;
@@ -520,7 +546,8 @@ Future<void> _leaveHousehold() async {
     );
   }
 
-  void _showEditShareExpenseBottomSheet(BuildContext context, {required String email}) {
+  void _showEditShareExpenseBottomSheet(BuildContext context,
+      {required String email}) {
     final panelWidth = MediaQuery.of(context).size.width * 0.8;
     showModalBottomSheet(
       context: context,
@@ -547,16 +574,15 @@ Future<void> _leaveHousehold() async {
   }
 }
 
-
-
 class InviteFlatmateBottomSheet extends StatelessWidget {
-  final String? roomCode; 
+  final String? roomCode;
   const InviteFlatmateBottomSheet({super.key, this.roomCode});
 
   @override
   Widget build(BuildContext context) {
     final h = MediaQuery.of(context).size.height;
-    final code = (roomCode == null || roomCode!.isEmpty) ? 'NO-ROOM' : roomCode!;
+    final code =
+        (roomCode == null || roomCode!.isEmpty) ? 'NO-ROOM' : roomCode!;
 
     return SafeArea(
       top: false,
@@ -564,7 +590,8 @@ class InviteFlatmateBottomSheet extends StatelessWidget {
         height: h * 0.7,
         decoration: const BoxDecoration(
           color: AppColors.primaryBlue,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(25), topRight: Radius.circular(25)),
+          borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(25), topRight: Radius.circular(25)),
         ),
         child: Column(
           children: [
@@ -584,18 +611,25 @@ class InviteFlatmateBottomSheet extends StatelessWidget {
                 child: Column(
                   children: [
                     Container(
-                      width: 80, height: 80,
-                      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(20)),
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(20)),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Image.asset('assets/images/realhand.png', fit: BoxFit.contain),
+                        child: Image.asset('assets/images/realhand.png',
+                            fit: BoxFit.contain),
                       ),
                     ),
                     const SizedBox(height: 20),
                     const Text(
                       'Share this access code with your flatmates',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 16, color: AppColors.white),
+                      style: TextStyle(
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 16,
+                          color: AppColors.white),
                     ),
                     const SizedBox(height: 40),
 
@@ -603,7 +637,9 @@ class InviteFlatmateBottomSheet extends StatelessWidget {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
+                      decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(16)),
                       child: Column(
                         children: [
                           Text(
@@ -619,7 +655,8 @@ class InviteFlatmateBottomSheet extends StatelessWidget {
                           const SizedBox(height: 8),
                           GestureDetector(
                             onTap: () async {
-                              await Clipboard.setData(ClipboardData(text: code));
+                              await Clipboard.setData(
+                                  ClipboardData(text: code));
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Code copied')),
                               );
@@ -638,22 +675,23 @@ class InviteFlatmateBottomSheet extends StatelessWidget {
                     ),
                     const Spacer(),
 
-             
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
                         onPressed: () async {
                           await Clipboard.setData(ClipboardData(text: code));
-                  
+
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Code copied. Share anywhere!')),
+                            const SnackBar(
+                                content: Text('Code copied. Share anywhere!')),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryYellow,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28)),
                         ),
                         child: const Text(
                           'Share code',
@@ -678,17 +716,17 @@ class InviteFlatmateBottomSheet extends StatelessWidget {
   }
 }
 
-
-
 class EditShareExpenseBottomSheet extends StatefulWidget {
   final String initialEmail;
   const EditShareExpenseBottomSheet({super.key, required this.initialEmail});
 
   @override
-  State<EditShareExpenseBottomSheet> createState() => _EditShareExpenseBottomSheetState();
+  State<EditShareExpenseBottomSheet> createState() =>
+      _EditShareExpenseBottomSheetState();
 }
 
-class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomSheet> {
+class _EditShareExpenseBottomSheetState
+    extends State<EditShareExpenseBottomSheet> {
   late final TextEditingController _emailController;
 
   @override
@@ -713,13 +751,18 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
         height: h * 0.7,
         decoration: const BoxDecoration(
           color: AppColors.primaryBlue,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(25), topRight: Radius.circular(25)),
+          borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(25), topRight: Radius.circular(25)),
         ),
         child: Column(
           children: [
             Container(
-              width: 40, height: 4, margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(color: AppColors.white.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                  color: AppColors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2)),
             ),
             Expanded(
               child: Padding(
@@ -727,11 +770,15 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
                 child: Column(
                   children: [
                     Container(
-                      width: 80, height: 80,
-                      decoration: BoxDecoration(color: AppColors.primaryYellow, borderRadius: BorderRadius.circular(20)),
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                          color: AppColors.primaryYellow,
+                          borderRadius: BorderRadius.circular(20)),
                       child: Padding(
                         padding: const EdgeInsets.all(20),
-                        child: Image.asset('assets/images/interac.png', fit: BoxFit.contain),
+                        child: Image.asset('assets/images/interac.png',
+                            fit: BoxFit.contain),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -749,13 +796,18 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
                     const Text(
                       'Share the email you receive e-transfers on. You can change it anytime.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontFamily: AppFonts.darkerGrotesque, fontSize: 14, color: AppColors.white),
+                      style: TextStyle(
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontSize: 14,
+                          color: AppColors.white),
                     ),
                     const SizedBox(height: 40),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
+                      decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(16)),
                       child: TextFormField(
                         controller: _emailController,
                         style: const TextStyle(
@@ -789,13 +841,15 @@ class _EditShareExpenseBottomSheetState extends State<EditShareExpenseBottomShee
                           // Persist later when implemented
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Feature not yet implemented')),
+                            const SnackBar(
+                                content: Text('Feature not yet implemented')),
                           );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryYellow,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28)),
                         ),
                         child: const Text(
                           'Save email',
