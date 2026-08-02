@@ -12,7 +12,6 @@ import '../state/currency_store.dart';
 
 const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
 
-
 class PaymentPage extends StatefulWidget {
   final List<String> selectedItems;
   final String roomId;
@@ -505,107 +504,107 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _buildGridLayout(List<Roommate> nonPayers) {
-  return GridView.builder(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      childAspectRatio: 2.5,
-    ),
-    itemCount: nonPayers.length,
-    itemBuilder: (context, index) {
-      final roommate = nonPayers[index];
-      final originalIndex = roommates.indexOf(roommate);
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 2.5,
+      ),
+      itemCount: nonPayers.length,
+      itemBuilder: (context, index) {
+        final roommate = nonPayers[index];
+        final originalIndex = roommates.indexOf(roommate);
 
-      return Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundImage: _avatarProvider(roommate.avatar),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    roommate.name,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      fontFamily: AppFonts.darkerGrotesque,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  SizedBox(
-                    height: 24,
-                    child: TextFormField(
-                      key: ValueKey(
-                        '${roommate.id}-${CurrencyStore.symbol.value}-${roommate.amount.toStringAsFixed(2)}',
-                      ), // rebuild on symbol/amount change
-                      initialValue: _fmt(roommate.amount),
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundImage: _avatarProvider(roommate.avatar),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      roommate.name,
                       style: const TextStyle(
-                        color: AppColors.primaryBlue,
+                        color: Colors.black,
                         fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         fontFamily: AppFonts.darkerGrotesque,
-                        fontFamilyFallback: _currencyFallback,
                       ),
-                      textAlign: TextAlign.center,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        // allow digits, dot and spaces (symbol comes from formatter)
-                        FilteringTextInputFormatter.allow(RegExp(r'[\d\.\s]')),
-                        _CurrencyTextInputFormatter(
-                          () => CurrencyStore.symbol.value,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    SizedBox(
+                      height: 24,
+                      child: TextFormField(
+                        key: ValueKey(
+                          '${roommate.id}-${CurrencyStore.symbol.value}-${roommate.amount.toStringAsFixed(2)}',
+                        ), // rebuild on symbol/amount change
+                        initialValue: _fmt(roommate.amount),
+                        style: const TextStyle(
+                          color: AppColors.primaryBlue,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: AppFonts.darkerGrotesque,
+                          fontFamilyFallback: _currencyFallback,
                         ),
-                      ],
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide:
-                              const BorderSide(color: AppColors.primaryBlue),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                            color: AppColors.primaryBlue,
-                            width: 1.5,
+                        textAlign: TextAlign.center,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        inputFormatters: [
+                          // allow digits, dot and spaces (symbol comes from formatter)
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[\d\.\s]')),
+                          _CurrencyTextInputFormatter(
+                            () => CurrencyStore.symbol.value,
+                          ),
+                        ],
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: AppColors.primaryBlue),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryBlue,
+                              width: 1.5,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 2,
+                            vertical: 2,
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 2,
-                          vertical: 2,
-                        ),
+                        onChanged: (value) {
+                          final n = double.tryParse(_sanitize(value)) ?? 0.0;
+                          _updateRoommateAmount(originalIndex, n);
+                        },
                       ),
-                      onChanged: (value) {
-                        final n = double.tryParse(_sanitize(value)) ?? 0.0;
-                        _updateRoommateAmount(originalIndex, n);
-                      },
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
-
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -971,10 +970,19 @@ class _CurrencyTextInputFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final sym = symbolProvider();
-    final numericText = newValue.text.replaceAll(RegExp(r'[^\d.]'), '');
-    if ('.'.allMatches(numericText).length > 1) return oldValue;
+    final digits = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
 
-    final next = numericText.isEmpty ? '$sym 0.00' : '$sym $numericText';
+    if (digits.isEmpty) {
+      final next = '$sym 0.00';
+      return TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+    }
+
+    final cents = int.tryParse(digits) ?? 0;
+    final numericText = (cents / 100).toStringAsFixed(2);
+    final next = '$sym $numericText';
     return TextEditingValue(
       text: next,
       selection: TextSelection.collapsed(offset: next.length),
