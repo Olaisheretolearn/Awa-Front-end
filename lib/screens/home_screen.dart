@@ -1,5 +1,6 @@
 // Updated HomeScreen using SharedBottomNav
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'chat_screen.dart';
@@ -34,7 +35,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late PageController _calendarController;
   late DateTime _currentDate;
   int _currentWeekIndex = 0;
@@ -60,6 +61,8 @@ List<BillResponse> _bills = [];
 List<ShoppingItemDto> _shopping = [];
 
 bool _loading = true;
+String? _loadError;
+bool _refreshingAfterResume = false;
 
 int get _totalChores => _tasks.length; 
 int get _totalShopping => _shopping.where((x) => !x.isBought).length;
@@ -120,48 +123,75 @@ String _mon(int m) => const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Se
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentDate = DateTime.now();
     _calendarController = PageController(initialPage: 1000);
-    _bootstrapIds(); 
-  }
-
-
-Future<void> _bootstrapIds() async {
-  try {
     _api = ApiClient.dev();
     _auth = AuthApi(_api);
     _rooms = RoomApi(_api);
     _tasksApi = TasksApi(_api);
     _billsApi = BillsApi(_api);
     _shoppingApi = ShoppingApi(_api);
+    _bootstrapIds();
+  }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_reloadAfterResume());
+    }
+  }
+
+  Future<void> _reloadAfterResume() async {
+    if (_bootLoading || _refreshingAfterResume) return;
+    _refreshingAfterResume = true;
+    await _bootstrapIds();
+    _refreshingAfterResume = false;
+  }
+
+Future<void> _bootstrapIds() async {
+  try {
     final me = await _auth.getMe();
     final myRoom = await _rooms.getMyRoom();
 
-    _me = me;
-    _room = myRoom.room;
-    _roomId = myRoom.room?.id;
-    _userId = me.id;
+    final room = myRoom.room;
+    final roomId = room?.id;
+    List<UserResponse> members = [];
+    List<TaskDto> tasks = [];
+    List<BillResponse> bills = [];
+    List<ShoppingItemDto> shopping = [];
 
-    if (_roomId != null) {
+    if (roomId != null) {
       final results = await Future.wait([
-        _rooms.getMembers(_roomId!),
-        _tasksApi.listByRoom(_roomId!),
-        _billsApi.listByRoom(_roomId!),
-        _shoppingApi.list(_roomId!),
+        _rooms.getMembers(roomId),
+        _tasksApi.listByRoom(roomId),
+        _billsApi.listByRoom(roomId),
+        _shoppingApi.list(roomId),
       ]);
-      _members = results[0] as List<UserResponse>;
-      _tasks   = results[1] as List<TaskDto>;
-      _bills   = results[2] as List<BillResponse>;
-      _shopping= results[3] as List<ShoppingItemDto>;
+      members = results[0] as List<UserResponse>;
+      tasks = results[1] as List<TaskDto>;
+      bills = results[2] as List<BillResponse>;
+      shopping = results[3] as List<ShoppingItemDto>;
     }
 
+    if (!mounted) return;
     setState(() {
+      _me = me;
+      _room = room;
+      _roomId = roomId;
+      _userId = me.id;
+      _members = members;
+      _tasks = tasks;
+      _bills = bills;
+      _shopping = shopping;
+      _loadError = null;
       _bootLoading = false;
       _loading = false;
     });
   } catch (_) {
+    if (!mounted) return;
     setState(() {
+      _loadError = 'Could not refresh your home data.';
       _bootLoading = false;
       _loading = false;
     });
@@ -171,6 +201,7 @@ Future<void> _bootstrapIds() async {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _calendarController.dispose();
     super.dispose();
   }
@@ -254,6 +285,28 @@ List<TaskDto> get _sortedByDate {
 Widget build(BuildContext context) {
   if (_bootLoading) {
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+
+  if (_loadError != null && _me == null) {
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_loadError!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _bootstrapIds,
+                child: const Text('Try again'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   return WillPopScope(

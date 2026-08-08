@@ -300,12 +300,11 @@ class _SignUpScreenState extends State<SignUpScreen>
                           );
                           // After register, then takes us to sihn in screen
                           if (!mounted) return;
-                          Navigator.pop(context); 
+                          Navigator.pop(context);
                         } on DioException catch (e) {
                           showSnack(context, extractMsg(e));
                         } catch (e) {
-                          showSnack(context,
-                              'Something went wrong. Please try again.');
+                          showSnack(context, defaultErrorMessage);
                         }
                       },
                       style: ElevatedButton.styleFrom(

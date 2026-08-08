@@ -2,18 +2,19 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../api/app_error.dart';
+
+const defaultErrorMessage = 'Looks like something happened. Please try again.';
+
 void showSnack(BuildContext ctx, String msg) {
   ScaffoldMessenger.of(ctx).showSnackBar(
     SnackBar(content: Text(msg)),
   );
 }
 
-String extractMsg(DioException e) {
-  try {
-    final data = e.response?.data;
-    if (data is Map && data['message'] is String) {
-      return data['message'];
-    }
-  } catch (_) {}
-  return e.message ?? 'Network error';
+String extractMsg(Object err) {
+  if (err is DioException) {
+    return friendlyMessage(mapDioError(err));
+  }
+  return defaultErrorMessage;
 }

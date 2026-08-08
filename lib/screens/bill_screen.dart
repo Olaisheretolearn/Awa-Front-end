@@ -16,6 +16,7 @@ import '../api/bills_api.dart';
 import '../api/bills_models.dart';
 import '../state/currency_store.dart';
 import '../widgets/exit_app_guard.dart';
+import '../utils/ui_helpers.dart';
 
 const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
 
@@ -125,7 +126,7 @@ class _BillsScreenState extends State<BillsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t notify: $e')),
+        SnackBar(content: Text(extractMsg(e))),
       );
     }
   }
@@ -151,64 +152,62 @@ class _BillsScreenState extends State<BillsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t update: $e')),
+        SnackBar(content: Text(extractMsg(e))),
       );
     }
   }
 
-void _showDebtorActionsSheet(BillResponse bill) {
-  final myShare = _myShareOn(bill);
-  final alreadyNotified =
-      myShare?.status == 'MARKED_PAID' || myShare?.status == 'CONFIRMED';
+  void _showDebtorActionsSheet(BillResponse bill) {
+    final myShare = _myShareOn(bill);
+    final alreadyNotified =
+        myShare?.status == 'MARKED_PAID' || myShare?.status == 'CONFIRMED';
 
-  showModalBottomSheet(
-    context: context,
-    useSafeArea: true,            
-    isScrollControlled: true,     
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (ctx) => Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(bill.name,
-              style: const TextStyle(
-                  fontFamily: AppFonts.darkerGrotesque,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700)),
-          if (bill.description.isNotEmpty)
-            const SizedBox(height: 4),
-          if (bill.description.isNotEmpty)
-            Text(bill.description,
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(bill.name,
                 style: const TextStyle(
                     fontFamily: AppFonts.darkerGrotesque,
-                    fontSize: 14,
-                    color: Color(0xFF666666))),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: alreadyNotified ? null : () => _notifyPayment(bill),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: AppColors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
+            if (bill.description.isNotEmpty) const SizedBox(height: 4),
+            if (bill.description.isNotEmpty)
+              Text(bill.description,
+                  style: const TextStyle(
+                      fontFamily: AppFonts.darkerGrotesque,
+                      fontSize: 14,
+                      color: Color(0xFF666666))),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: alreadyNotified ? null : () => _notifyPayment(bill),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
+                child: Text(
+                    alreadyNotified ? 'Already notified' : 'Notify payment'),
               ),
-              child: Text(alreadyNotified ? 'Already notified' : 'Notify payment'),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
-
-
+    );
+  }
 
   BillShare? _myShareOn(BillResponse b) {
     final uid = _userId;
@@ -251,61 +250,61 @@ void _showDebtorActionsSheet(BillResponse bill) {
 
   @override
   Widget build(BuildContext context) {
-      return ExitAppGuard(
-    rootOnly: true, // prompt only if this page is at the root
-    child: Scaffold(
-      backgroundColor: AppColors.primaryBlue,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
+    return ExitAppGuard(
+      rootOnly: true, // prompt only if this page is at the root
+      child: Scaffold(
+        backgroundColor: AppColors.primaryBlue,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              _buildHeader(),
 
-            // Tab Bar
-            _buildTabBar(),
+              // Tab Bar
+              _buildTabBar(),
 
-            // Content
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: _selectedTabIndex == 0
-                    ? _buildOverviewContent()
-                    : _selectedTabIndex == 1
-                        ? _buildContractsContent()
-                        : _buildReviewContent(),
-              ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: (_roomId == null || _userId == null)
-            ? null // disable until ids are loaded
-            : () async {
-                final created = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PaymentPage(
-                      selectedItems: const ['New Expense'],
-                      roomId: _roomId!,
-                      userId: _userId!,
+              // Content
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
                     ),
                   ),
-                );
-                if (created == true) _load(); // refresh bills list
-              },
-        backgroundColor: AppColors.primaryBlue,
-        child: const Icon(Icons.add, color: AppColors.white, size: 32),
+                  child: _selectedTabIndex == 0
+                      ? _buildOverviewContent()
+                      : _selectedTabIndex == 1
+                          ? _buildContractsContent()
+                          : _buildReviewContent(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: (_roomId == null || _userId == null)
+              ? null // disable until ids are loaded
+              : () async {
+                  final created = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PaymentPage(
+                        selectedItems: const ['New Expense'],
+                        roomId: _roomId!,
+                        userId: _userId!,
+                      ),
+                    ),
+                  );
+                  if (created == true) _load(); // refresh bills list
+                },
+          backgroundColor: AppColors.primaryBlue,
+          child: const Icon(Icons.add, color: AppColors.white, size: 32),
+        ),
+        bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
       ),
-      bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
-    ),
-  );
+    );
   }
 
   Widget _buildHeader() {
@@ -902,8 +901,7 @@ void _showDebtorActionsSheet(BillResponse bill) {
                             amount,
                             style: const TextStyle(
                               fontFamily: AppFonts.darkerGrotesque,
-                              fontFamilyFallback:
-                                  _currencyFallback, 
+                              fontFamilyFallback: _currencyFallback,
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: AppColors.black,

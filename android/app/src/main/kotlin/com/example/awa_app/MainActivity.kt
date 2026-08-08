@@ -1,4 +1,4 @@
-package com.example.awa_app
+package app.awa
 
 import io.flutter.embedding.android.FlutterActivity
 

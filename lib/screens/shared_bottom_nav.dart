@@ -11,8 +11,7 @@ import '../api/client.dart';
 import '../api/room_api.dart';
 import '../api/auth_api.dart';
 import '../api/tasks_api.dart';
-
-
+import '../utils/ui_helpers.dart';
 
 class SharedBottomNav extends StatelessWidget {
   final int currentIndex;
@@ -22,7 +21,7 @@ class SharedBottomNav extends StatelessWidget {
   final String? userId;
 
   const SharedBottomNav({
-       Key? key,
+    Key? key,
     required this.currentIndex,
     this.shouldPop = true,
     this.roomId,
@@ -44,17 +43,16 @@ class SharedBottomNav extends StatelessWidget {
         screen = const BillsScreen();
         break;
       case 3:
-       if (roomId != null && userId != null) {
-    screen = ChatScreen(roomId: roomId!, userId: userId!);
-  } else {
-    screen = const _ChatGate(); // will fetch me + my room, then push Chat
-  }
+        if (roomId != null && userId != null) {
+          screen = ChatScreen(roomId: roomId!, userId: userId!);
+        } else {
+          screen = const _ChatGate(); // will fetch me + my room, then push Chat
+        }
         break;
-      case 4: 
+      case 4:
         if (roomId != null && userId != null) {
           screen = TasksScreen(roomId: roomId!, userId: userId!);
         } else {
-        
           screen = const _TasksGate();
         }
         break;
@@ -62,7 +60,7 @@ class SharedBottomNav extends StatelessWidget {
         return;
     }
 
- final route = MaterialPageRoute(builder: (context) => screen);
+    final route = MaterialPageRoute(builder: (context) => screen);
     if (shouldPop) {
       Navigator.pushReplacement(
         context,
@@ -77,7 +75,7 @@ class SharedBottomNav extends StatelessWidget {
   }
 
   @override
-Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return SafeArea(
       top: false,
       child: Container(
@@ -100,8 +98,8 @@ Widget build(BuildContext context) {
     );
   }
 
-
-  Widget _buildNavItem(BuildContext context, IconData icon, String label, int index) {
+  Widget _buildNavItem(
+      BuildContext context, IconData icon, String label, int index) {
     final bool isSelected = currentIndex == index;
 
     return GestureDetector(
@@ -128,7 +126,8 @@ Widget build(BuildContext context) {
               fontFamily: AppFonts.darkerGrotesque,
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: isSelected ? AppColors.primaryBlue : const Color(0xFF666666),
+              color:
+                  isSelected ? AppColors.primaryBlue : const Color(0xFF666666),
             ),
           ),
         ],
@@ -158,7 +157,7 @@ class _TasksGateState extends State<_TasksGate> {
       final auth = AuthApi(_api);
       final roomApi = RoomApi(_api);
 
-      final me = await auth.getMe();           // has user id
+      final me = await auth.getMe(); // has user id
       final myRoom = await roomApi.getMyRoom(); // or get room via /rooms/me
       final roomId = myRoom.room?.id;
 
@@ -173,12 +172,13 @@ class _TasksGateState extends State<_TasksGate> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => TasksScreen(roomId: roomId, userId: me.id)),
+        MaterialPageRoute(
+            builder: (_) => TasksScreen(roomId: roomId, userId: me.id)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open Tasks: $e')),
+        SnackBar(content: Text(extractMsg(e))),
       );
       Navigator.pop(context);
     }
@@ -229,12 +229,13 @@ class _ChatGateState extends State<_ChatGate> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => ChatScreen(roomId: roomId, userId: me.id)),
+        MaterialPageRoute(
+            builder: (_) => ChatScreen(roomId: roomId, userId: me.id)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open Chat: $e')),
+        SnackBar(content: Text(extractMsg(e))),
       );
       Navigator.pop(context);
     }
@@ -248,6 +249,3 @@ class _ChatGateState extends State<_ChatGate> {
     );
   }
 }
-
-
-

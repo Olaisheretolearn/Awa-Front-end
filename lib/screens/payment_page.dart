@@ -9,6 +9,8 @@ import '../api/bills_api.dart';
 import '../api/bills_models.dart';
 import '../widgets/currency_picker_bottom_sheet.dart';
 import '../state/currency_store.dart';
+import '../utils/ui_helpers.dart';
+import 'shared_bottom_nav.dart';
 
 const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
 
@@ -145,7 +147,7 @@ class _PaymentPageState extends State<PaymentPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create invoice: $e')),
+        SnackBar(content: Text(extractMsg(e))),
       );
     }
   }
@@ -884,7 +886,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     _buildPaidBySection(),
                     _buildShareAmongstSection(),
                     _buildCreateInvoiceButton(),
-                    SizedBox(height: 100),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -893,44 +895,7 @@ class _PaymentPageState extends State<PaymentPage> {
         ),
       ),
 
-      // Bottom Navigation
-      bottomNavigationBar: Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            Icon(Icons.home, color: Colors.grey[600]),
-            Icon(Icons.person, color: Colors.grey[600]),
-            Image.asset(
-              'assets/images/shopping_cart.png',
-              width: 24,
-              height: 24,
-              color: Colors.grey[600],
-            ),
-            Image.asset(
-              'assets/images/money.png',
-              width: 24,
-              height: 24,
-              color: AppColors.primaryBlue,
-            ),
-            Icon(Icons.chat, color: Colors.grey[600]),
-          ],
-        ),
-      ),
+      bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
     );
   }
 
