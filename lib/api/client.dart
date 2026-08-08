@@ -23,14 +23,14 @@ class ApiClient {
     final dio = Dio(
       BaseOptions(
         baseUrl: '$base/api',
-        connectTimeout: const Duration(seconds: 100),
-        receiveTimeout: const Duration(seconds: 100),
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
         headers: {'Content-Type': 'application/json'},
         receiveDataWhenStatusError: true,
       ),
     );
 
-    dio.interceptors.add(AuthInterceptor(storage));
+    dio.interceptors.add(AuthInterceptor(storage, baseUrl: '$base/api'));
 
 
 

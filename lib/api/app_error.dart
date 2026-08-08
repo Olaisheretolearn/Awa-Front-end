@@ -2,17 +2,15 @@
 import 'package:dio/dio.dart';
 import 'client.dart';
 import 'model.dart';
-
-
+import '../utils/ui_helpers.dart';
 
 class AppError {
-  final String code;   
-  final String message;  
+  final String code;
+  final String message;
   AppError(this.code, this.message);
 }
 
 AppError mapDioError(Object err) {
-  
   AppError fallback(String code, String msg) => AppError(code, msg);
 
   if (err is DioException) {
@@ -28,14 +26,21 @@ AppError mapDioError(Object err) {
     final status = err.response?.statusCode;
     final data = err.response?.data;
 
-    
     if (data is Map<String, dynamic>) {
       final code = (data['code'] as String?)?.toUpperCase();
-      final msg  = (data['message'] as String?) ?? '';
+      final msg = (data['message'] as String?) ?? '';
       if (code != null) return AppError(code, msg);
     } else if (data is String) {
-      
       final s = data.toLowerCase();
+      if (s.contains('expired') ||
+          s.contains('unauthorized') ||
+          s.contains('token') ||
+          s.contains('jwt')) {
+        return fallback('UNAUTHORIZED', 'Please sign in again.');
+      }
+      if (s.contains('timeout') || s.contains('timed out')) {
+        return fallback('NETWORK_TIMEOUT', 'The request timed out.');
+      }
       if (s.contains('room') && s.contains('not found')) {
         return fallback('ROOM_CODE_INVALID', 'Room not found');
       }
@@ -46,18 +51,26 @@ AppError mapDioError(Object err) {
 
     // Generic by status code
     switch (status) {
-      case 400: return fallback('BAD_REQUEST', 'Bad request.');
-      case 401: return fallback('UNAUTHORIZED', 'Please sign in again.');
-      case 403: return fallback('FORBIDDEN', 'You don’t have permission.');
-      case 404: return fallback('NOT_FOUND', 'Not found.');
-      case 409: return fallback('CONFLICT', 'Conflict.');
-      case 422: return fallback('VALIDATION_ERROR', 'Validation failed.');
-      case 500: return fallback('SERVER_ERROR', 'Server error.');
-      case 503: return fallback('SERVICE_UNAVAILABLE', 'Service unavailable.');
+      case 400:
+        return fallback('BAD_REQUEST', 'Bad request.');
+      case 401:
+        return fallback('UNAUTHORIZED', 'Please sign in again.');
+      case 403:
+        return fallback('FORBIDDEN', 'You don’t have permission.');
+      case 404:
+        return fallback('NOT_FOUND', 'Not found.');
+      case 409:
+        return fallback('CONFLICT', 'Conflict.');
+      case 422:
+        return fallback('VALIDATION_ERROR', 'Validation failed.');
+      case 500:
+        return fallback('SERVER_ERROR', 'Server error.');
+      case 503:
+        return fallback('SERVICE_UNAVAILABLE', 'Service unavailable.');
     }
   }
 
-  return AppError('UNKNOWN', 'Something went wrong.');
+  return AppError('UNKNOWN', defaultErrorMessage);
 }
 
 String friendlyMessage(AppError e) {
@@ -75,8 +88,8 @@ String friendlyMessage(AppError e) {
       return "We can’t reach the server. Are you online?";
     case 'SERVER_ERROR':
     case 'SERVICE_UNAVAILABLE':
-      return "We’re having trouble on our end. Please try again.";
+      return "We’re having trouble on our end. If you were idle for a while, try again or sign in again.";
     default:
-      return "Something went wrong. Please try again.";
+      return defaultErrorMessage;
   }
 }

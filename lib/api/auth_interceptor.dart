@@ -10,13 +10,21 @@ class AuthInterceptor extends Interceptor {
   final OnUnauthorized? onUnauthorized;
 
   bool _refreshing = false;
+  Future<bool>? _refreshFuture;
 
-  AuthInterceptor(this.storage, {this.onUnauthorized})
-      : _refreshDio = Dio(BaseOptions(
-          baseUrl: "https://awa-pp4u.onrender.com/api", 
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
-        ));
+  AuthInterceptor(
+    this.storage, {
+    required String baseUrl,
+    this.onUnauthorized,
+    Dio? refreshDio,
+  }) : _refreshDio = refreshDio ??
+            Dio(BaseOptions(
+              baseUrl: baseUrl,
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 10),
+              headers: {'Content-Type': 'application/json'},
+              receiveDataWhenStatusError: true,
+            ));
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -30,36 +38,45 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final status = err.response?.statusCode;
-    final isApi = err.requestOptions.path.startsWith('/api');
 
-    if (status == 401 && isApi) {
-      if (_refreshing) {
-   
-        return handler.next(err);
-      }
-
-      _refreshing = true;
-      final ok = await _tryRefresh();
-      _refreshing = false;
+    if ((status == 401 || status == 403) &&
+        err.requestOptions.path != '/auth/refresh') {
+      final ok = await _refreshSession();
 
       if (ok) {
-       
+        final retryOptions = err.requestOptions.copyWith();
         final newAT = await storage.access;
-        err.requestOptions.headers['Authorization'] = 'Bearer $newAT';
-        final clone = await _refreshDio.request(
-          err.requestOptions.path,
-          data: err.requestOptions.data,
-          queryParameters: err.requestOptions.queryParameters,
-          options: Options(method: err.requestOptions.method),
-        );
-        return handler.resolve(clone);
-      } else {
-        await storage.clear();
-        if (onUnauthorized != null) await onUnauthorized!();
+        if (newAT != null && newAT.isNotEmpty) {
+          retryOptions.headers['Authorization'] = 'Bearer $newAT';
+        }
+
+        try {
+          final clone = await _refreshDio.fetch(retryOptions);
+          return handler.resolve(clone);
+        } catch (_) {
+          return handler.next(err);
+        }
       }
+
+      await storage.clear();
+      if (onUnauthorized != null) await onUnauthorized!();
     }
 
     return handler.next(err);
+  }
+
+  Future<bool> _refreshSession() async {
+    if (_refreshFuture != null) {
+      return _refreshFuture!;
+    }
+
+    _refreshing = true;
+    _refreshFuture = _tryRefresh();
+
+    final ok = await _refreshFuture!;
+    _refreshing = false;
+    _refreshFuture = null;
+    return ok;
   }
 
   Future<bool> _tryRefresh() async {

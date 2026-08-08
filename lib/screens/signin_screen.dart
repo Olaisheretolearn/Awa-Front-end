@@ -7,7 +7,6 @@ import 'package:dio/dio.dart';
 import '../utils/ui_helpers.dart';
 import '../api/client.dart';
 import '../api/auth_api.dart';
-import "../utils/ui_helpers.dart";
 import 'home_screen.dart';
 import 'create_join_flat_screen.dart';
 
@@ -286,10 +285,8 @@ class _SignInScreenState extends State<SignInScreen>
                         } on DioException catch (e) {
                           showSnack(context, extractMsg(e));
                         } catch (e) {
-                          showSnack(context, 'Login failed. Try again.');
-                        } finally {
-                         
-                        }
+                          showSnack(context, defaultErrorMessage);
+                        } finally {}
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryBlue,

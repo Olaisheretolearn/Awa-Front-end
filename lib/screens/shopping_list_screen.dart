@@ -7,6 +7,7 @@ import '../api/auth_api.dart';
 import '../api/room_api.dart';
 import '../api/shopping_api.dart';
 import 'payment_page.dart';
+import '../utils/ui_helpers.dart';
 
 class ShoppingListPage extends StatefulWidget {
   @override
@@ -46,7 +47,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
         _userId = me.id;
         _userName = me.firstName;
         _roomId = roomId;
-        _selectedList = _byList.keys.isNotEmpty ? _byList.keys.first : 'General';
+        _selectedList =
+            _byList.keys.isNotEmpty ? _byList.keys.first : 'General';
         _bootLoading = false;
       });
     }();
@@ -70,9 +72,7 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20), 
-              topRight: Radius.circular(20)
-            ),
+                topLeft: Radius.circular(20), topRight: Radius.circular(20)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -80,24 +80,24 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.grey[300]!))
-                ),
+                    border:
+                        Border(bottom: BorderSide(color: Colors.grey[300]!))),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(it.itemName,
                         style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: AppFonts.darkerGrotesque)),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: AppFonts.darkerGrotesque)),
                     GestureDetector(
                       onTap: () => Navigator.of(ctx).pop(),
                       child: const Text(
                         'Done',
                         style: TextStyle(
-                          color: AppColors.primaryBlue,
-                          fontSize: 16,
-                          fontFamily: AppFonts.darkerGrotesque),
+                            color: AppColors.primaryBlue,
+                            fontSize: 16,
+                            fontFamily: AppFonts.darkerGrotesque),
                       ),
                     ),
                   ],
@@ -121,33 +121,35 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                             );
                             setState(() {
                               final listItems = _byList[it.listName] ?? [];
-                              final idx = listItems.indexWhere((x) => x.id == it.id);
+                              final idx =
+                                  listItems.indexWhere((x) => x.id == it.id);
                               if (idx >= 0) listItems[idx] = updated;
                             });
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Marked as bought!')),
+                              const SnackBar(
+                                  content: Text('Marked as bought!')),
                             );
                           } catch (_) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not mark bought')),
+                              const SnackBar(
+                                  content: Text(defaultErrorMessage)),
                             );
                           }
                         },
-                        icon: const Icon(Icons.shopping_bag, color: Colors.white),
+                        icon:
+                            const Icon(Icons.shopping_bag, color: Colors.white),
                         label: const Text(
                           'Mark as Bought',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontFamily: AppFonts.darkerGrotesque
-                          ),
+                              color: Colors.white,
+                              fontFamily: AppFonts.darkerGrotesque),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryBlue,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)
-                          ),
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
@@ -159,7 +161,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                           try {
                             await _shopping.delete(it.id, _roomId!);
                             setState(() {
-                              _byList[it.listName]?.removeWhere((x) => x.id == it.id);
+                              _byList[it.listName]
+                                  ?.removeWhere((x) => x.id == it.id);
                               _selectedItemIds.remove(it.id);
                             });
                             Navigator.pop(ctx);
@@ -168,7 +171,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                             );
                           } catch (_) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not remove item')),
+                              const SnackBar(
+                                  content: Text(defaultErrorMessage)),
                             );
                           }
                         },
@@ -176,16 +180,14 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                         label: const Text(
                           'Remove',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontFamily: AppFonts.darkerGrotesque
-                          ),
+                              color: Colors.white,
+                              fontFamily: AppFonts.darkerGrotesque),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryBlue,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)
-                          ),
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
@@ -215,18 +217,14 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
         content: TextField(
           controller: ctrl,
           decoration: const InputDecoration(
-            hintText: 'e.g., Grocery, Yard, Toiletries'
-          ),
+              hintText: 'e.g., Grocery, Yard, Toiletries'),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx), 
-            child: const Text('Cancel')
-          ),
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('Add')
-          ),
+              onPressed: () => Navigator.pop(ctx, ctrl.text),
+              child: const Text('Add')),
         ],
       ),
     );
@@ -237,7 +235,10 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
 
   Future<void> _addItemToCurrentList() async {
     final itemName = _makeEntryController.text.trim();
-    if (itemName.isEmpty || _roomId == null || _userId == null || _userName == null) return;
+    if (itemName.isEmpty ||
+        _roomId == null ||
+        _userId == null ||
+        _userName == null) return;
 
     final listName = _selectedList ?? 'General';
 
@@ -256,15 +257,14 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Item added!'),
-          backgroundColor: AppColors.primaryBlue
-        ),
+            content: Text('Item added!'),
+            backgroundColor: AppColors.primaryBlue),
       );
     } catch (e, st) {
       debugPrint('Create failed: $e');
       debugPrint('Stack: $st');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not add item')),
+        const SnackBar(content: Text(defaultErrorMessage)),
       );
     }
   }
@@ -294,22 +294,26 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
       decoration: const BoxDecoration(
         color: AppColors.primaryBlue,
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(20), 
+          bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
         ),
       ),
       child: Stack(
         children: [
           Positioned(
-            top: 10, right: 20,
+            top: 10,
+            right: 20,
             child: Image.asset('assets/images/star.png', width: 34, height: 34),
           ),
           Positioned(
-            top: 40, right: 80,
-            child: Image.asset('assets/images/money.png', width: 34, height: 34),
+            top: 40,
+            right: 80,
+            child:
+                Image.asset('assets/images/money.png', width: 34, height: 34),
           ),
           Positioned(
-            top: 20, left: 100,
+            top: 20,
+            left: 100,
             child: Image.asset('assets/images/star.png', width: 34, height: 34),
           ),
           Column(
@@ -320,7 +324,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                   const SizedBox(width: 8),
                   Row(
                     children: [
-                      Image.asset('assets/images/shopping_cart.png', width: 24, height: 24),
+                      Image.asset('assets/images/shopping_cart.png',
+                          width: 24, height: 24),
                       const SizedBox(width: 4),
                       const Text(
                         'Shopping List',
@@ -345,7 +350,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
               const SizedBox(height: 16),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
@@ -358,8 +364,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                       child: TextField(
                         controller: _makeEntryController,
                         style: const TextStyle(
-                          color: Colors.white, 
-                          fontSize: 14, 
+                          color: Colors.white,
+                          fontSize: 14,
                           fontFamily: AppFonts.darkerGrotesque,
                         ),
                         textInputAction: TextInputAction.done,
@@ -381,7 +387,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
@@ -389,8 +396,8 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
                 child: TextField(
                   controller: _infoController,
                   style: const TextStyle(
-                    color: Colors.white, 
-                    fontSize: 12, 
+                    color: Colors.white,
+                    fontSize: 12,
                     fontFamily: AppFonts.darkerGrotesque,
                   ),
                   textInputAction: TextInputAction.done,
@@ -587,81 +594,82 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
         ),
       ),
       floatingActionButton: Builder(builder: (context) {
-  final ln = _selectedList ?? 'General';
-  final items = _byList[ln] ?? const <ShoppingItemDto>[];
-  if (items.isEmpty || _roomId == null || _userId == null) {
-    return const SizedBox.shrink();
-  }
+        final ln = _selectedList ?? 'General';
+        final items = _byList[ln] ?? const <ShoppingItemDto>[];
+        if (items.isEmpty || _roomId == null || _userId == null) {
+          return const SizedBox.shrink();
+        }
 
-  return SafeArea(
-    minimum: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    child: SizedBox(
-      width: MediaQuery.of(context).size.width,
-      height: 52,
-      child: ElevatedButton.icon(
-        onPressed: () async {
-          final ok = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PaymentPage(
-                selectedItems: _currentListNames(),
-                roomId: _roomId!,
-                userId: _userId!,
+        return SafeArea(
+          minimum: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final ok = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PaymentPage(
+                      selectedItems: _currentListNames(),
+                      roomId: _roomId!,
+                      userId: _userId!,
+                    ),
+                  ),
+                );
+
+                if (ok == true && mounted) {
+                  setState(() {
+                    // clear the current list visually
+                    _byList[ln] = [];
+                    _selectedItemIds.clear(); // in case you had any selection
+                  });
+
+                  for (final it in items) {
+                    await _shopping.delete(it.id, _roomId!);
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content:
+                            Text('Invoiced "$ln" (${items.length}) items')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.payments),
+              label: Text(
+                'Invoice "$ln" (${items.length})',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                elevation: 2,
               ),
             ),
-          );
-
-          if (ok == true && mounted) {
-            setState(() {
-              // clear the current list visually
-              _byList[ln] = [];
-              _selectedItemIds.clear(); // in case you had any selection
-            });
-
-        
-             for (final it in items) {
-             await _shopping.delete(it.id, _roomId!);
-            }
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Invoiced "$ln" (${items.length}) items')),
-            );
-          }
-        },
-        icon: const Icon(Icons.payments),
-        label: Text(
-          'Invoice "$ln" (${items.length})',
-          style: const TextStyle(
-            color: Colors.white,
-            fontFamily: AppFonts.darkerGrotesque,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
           ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryBlue,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          elevation: 2,
-        ),
-      ),
-    ),
-  );
-}),
+        );
+      }),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: const SharedBottomNav(currentIndex: 1),
     );
   }
 
+  List<ShoppingItemDto> _currentListItems() {
+    final ln = _selectedList ?? 'General';
+    return List<ShoppingItemDto>.from(_byList[ln] ?? const <ShoppingItemDto>[]);
+  }
 
-    List<ShoppingItemDto> _currentListItems() {
-  final ln = _selectedList ?? 'General';
-  return List<ShoppingItemDto>.from(_byList[ln] ?? const <ShoppingItemDto>[]);
-}
-
-List<String> _currentListNames() {
-  return _currentListItems().map((e) => e.itemName).toList();
-}
+  List<String> _currentListNames() {
+    return _currentListItems().map((e) => e.itemName).toList();
+  }
 
   Widget _buildTabs() {
     final keys = _byList.keys.toList()..sort();
@@ -694,7 +702,8 @@ List<String> _currentListNames() {
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.add, color: AppColors.primaryBlue, size: 18),
+              child:
+                  const Icon(Icons.add, color: AppColors.primaryBlue, size: 18),
             ),
           ),
         ],

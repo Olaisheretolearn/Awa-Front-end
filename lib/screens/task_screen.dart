@@ -10,6 +10,7 @@ import '../api/room_api.dart';
 import '../api/model.dart';
 import '../utils/url_utils.dart';
 import '../widgets/exit_app_guard.dart';
+import '../utils/ui_helpers.dart';
 
 class TasksScreen extends StatefulWidget {
   final String roomId;
@@ -65,6 +66,9 @@ class _TasksScreenState extends State<TasksScreen> {
       });
     } catch (_) {
       setState(() => _loadingRoommates = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(defaultErrorMessage)),
+      );
     }
   }
 
@@ -84,7 +88,7 @@ class _TasksScreenState extends State<TasksScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Could not load tasks';
+        _error = defaultErrorMessage;
         _loading = false;
       });
     }
@@ -102,46 +106,46 @@ class _TasksScreenState extends State<TasksScreen> {
 
   @override
   Widget build(BuildContext context) {
-      return ExitAppGuard(
-    rootOnly: true, 
-    child: Scaffold(
-     backgroundColor: AppColors.primaryBlue,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20)),
+    return ExitAppGuard(
+      rootOnly: true,
+      child: Scaffold(
+        backgroundColor: AppColors.primaryBlue,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20)),
+                  ),
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(child: Text(_error!))
+                          : _tasks.isEmpty
+                              ? _buildEmpty()
+                              : _buildTasksList(),
                 ),
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                        ? Center(child: Text(_error!))
-                        : _tasks.isEmpty
-                            ? _buildEmpty() 
-                            : _buildTasksList(),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _showCreateTaskBottomSheet,
+          backgroundColor: AppColors.primaryBlue,
+          child: const Icon(Icons.add, color: AppColors.white, size: 28),
+        ),
+        bottomNavigationBar: SharedBottomNav(
+          currentIndex: 4, // Tasks tab index
+          roomId: widget.roomId,
+          userId: widget.userId,
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showCreateTaskBottomSheet,
-        backgroundColor: AppColors.primaryBlue,
-        child: const Icon(Icons.add, color: AppColors.white, size: 28),
-      ),
-      bottomNavigationBar: SharedBottomNav(
-  currentIndex: 4,                // Tasks tab index
-  roomId: widget.roomId,
-  userId: widget.userId,
-),
-    ),
-  );
+    );
   }
 
   Widget _buildEmpty() => const Center(
@@ -393,8 +397,7 @@ class _TasksScreenState extends State<TasksScreen> {
                         _expandedTasks.remove(task.id);
                       });
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Yayyyyyyy Task done!")),
+                        const SnackBar(content: Text("Yayyyyyyy Task done!")),
                       );
                     } catch (_) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -430,7 +433,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     });
                   } catch (_) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not delete task')),
+                      const SnackBar(content: Text(defaultErrorMessage)),
                     );
                   }
                 },
@@ -456,37 +459,29 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  String friendlyCompleteError({
+    int? status,
+    String? serverMessage,
+    required String assigneeName,
+  }) {
+    final msg = (serverMessage ?? '').toLowerCase();
 
+    if (status == 403 && msg.contains('not assigned')) {
+      return "uhm… looks like $assigneeName was assigned to that task 😅\n"
+          "feeling hyper? because that's not your task 🙈";
+    }
 
-String friendlyCompleteError({
-  int? status,
-  String? serverMessage,
-  required String assigneeName,
-}) {
-  final msg = (serverMessage ?? '').toLowerCase();
+    if (status == 403 && msg.contains('room') && msg.contains('member')) {
+      return "you’re not a member of this room yet 🚪\nask for an invite first!";
+    }
 
-  if (status == 403 && msg.contains('not assigned')) {
-    return "uhm… looks like $assigneeName was assigned to that task 😅\n"
-           "feeling hyper? because that's not your task 🙈";
+    if ((status == 409) ||
+        (msg.contains('already') && msg.contains('complete'))) {
+      return "this one’s already done ✅ nice try!";
+    }
+
+    return "couldn’t mark it complete right now 🤖\ntry again in a bit!";
   }
-
-  if (status == 403 && msg.contains('room') && msg.contains('member')) {
-    return "you’re not a member of this room yet 🚪\nask for an invite first!";
-  }
-
-  if ((status == 409) || (msg.contains('already') && msg.contains('complete'))) {
-    return "this one’s already done ✅ nice try!";
-  }
-
-  return "couldn’t mark it complete right now 🤖\ntry again in a bit!";
-}
-
-
-
-
-
-
-
 
   void _showCreateTaskBottomSheet() {
     if (_loadingRoommates) {
@@ -516,7 +511,7 @@ String friendlyCompleteError({
             );
           } catch (e) {
             ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Failed to create task')));
+                const SnackBar(content: Text(defaultErrorMessage)));
           }
         },
         currentUserId: widget.userId,
@@ -975,7 +970,7 @@ class _CreateTaskBottomSheetState extends State<CreateTaskBottomSheet> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to create task')),
+        const SnackBar(content: Text(defaultErrorMessage)),
       );
     }
   }

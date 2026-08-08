@@ -441,8 +441,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                                       } on DioException catch (e) {
                                         showSnack(context, extractMsg(e));
                                       } catch (_) {
-                                        showSnack(
-                                            context, 'Failed to set avatar.');
+                                        showSnack(context, defaultErrorMessage);
                                       }
                                     }
                                   : null,
