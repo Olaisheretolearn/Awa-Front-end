@@ -17,6 +17,7 @@ import '../api/model.dart';
 import 'create_join_flat_screen.dart';
 
 import '../utils/url_utils.dart';
+import '../utils/ui_helpers.dart';
 import 'package:flutter/services.dart';
 import '../api/bills_api.dart';
 import '../api/bills_models.dart';
@@ -188,10 +189,10 @@ Future<void> _bootstrapIds() async {
       _bootLoading = false;
       _loading = false;
     });
-  } catch (_) {
+  } catch (error) {
     if (!mounted) return;
     setState(() {
-      _loadError = 'Could not refresh your home data.';
+      _loadError = extractMsg(error);
       _bootLoading = false;
       _loading = false;
     });
@@ -1041,6 +1042,7 @@ Widget _buildExpenses() {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryBlue,
               foregroundColor: AppColors.white,
+              surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),

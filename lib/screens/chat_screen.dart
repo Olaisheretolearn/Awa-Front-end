@@ -130,8 +130,12 @@ class _ChatScreenState extends State<ChatScreen> {
       _userName = me.firstName;
     } catch (_) {}
 
-    // Load members + messages
-    await _loadMembers();
+    // A failed member lookup must not prevent message loading from completing.
+    try {
+      await _loadMembers();
+    } catch (_) {
+      // Message responses include sender names, so the chat can still load.
+    }
     await _loadInitial();
 
     try {

@@ -1,51 +1,21 @@
 // lib/main.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'constants/app_colors.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/signin_screen.dart';
 
-// APIs
-import 'api/client.dart';
-import 'api/auth_api.dart';
-import 'api/auth_storage.dart';
+import 'api/session_controller.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
- 
-  final api = ApiClient.dev();
-  final auth = AuthApi(api);
-  final storage = api.storage;
-
-  
- 
-  Widget start;
-  final hasStoredSession = await _hasStoredSession(storage);
-  if (!hasStoredSession) {
-    start = const OnboardingScreen();
-  } else {
-    try {
-      await auth.getMe();
-      start = const HomeScreen();
-    } catch (_) {
-      final stillSignedIn = await _hasStoredSession(storage);
-      start = stillSignedIn ? const HomeScreen() : const OnboardingScreen();
-    }
-  }
-
-  runApp(MyApp(start: start));
-}
-
-Future<bool> _hasStoredSession(AuthStorage storage) async {
-  final access = await storage.access;
-  final refresh = await storage.refresh;
-  return (access != null && access.isNotEmpty) ||
-      (refresh != null && refresh.isNotEmpty);
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final Widget start;
-  const MyApp({super.key, required this.start});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -55,9 +25,70 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primaryColor: AppColors.primaryBlue,
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryBlue),
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: AppColors.primaryBlue,
+        ),
         useMaterial3: true,
       ),
-      home: start,
+      home: const _SessionGate(),
     );
+  }
+}
+
+class _SessionGate extends StatefulWidget {
+  const _SessionGate();
+
+  @override
+  State<_SessionGate> createState() => _SessionGateState();
+}
+
+class _SessionGateState extends State<_SessionGate> {
+  final _session = SessionController.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _session.addListener(_handleSessionChange);
+    unawaited(_restoreSession());
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_handleSessionChange);
+    super.dispose();
+  }
+
+  void _handleSessionChange() {
+    if (!mounted) return;
+    final wasInvalidated = _session.takeInvalidation();
+    setState(() {});
+    if (!wasInvalidated) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (route) => false,
+      );
+    });
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      await _session.restore();
+    } catch (_) {
+      // Secure storage must never prevent the app from opening.
+      if (mounted) {
+        await _session.markSignedOut();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSession = _session.hasStoredSession;
+    if (hasSession == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return hasSession ? const HomeScreen() : const OnboardingScreen();
   }
 }

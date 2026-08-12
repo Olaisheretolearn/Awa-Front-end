@@ -1,7 +1,5 @@
 // lib/api/app_error.dart
 import 'package:dio/dio.dart';
-import 'client.dart';
-import 'model.dart';
 import '../utils/ui_helpers.dart';
 
 class AppError {
@@ -86,6 +84,8 @@ String friendlyMessage(AppError e) {
       return "Hmm, that took too long. Check your connection and try again.";
     case 'NETWORK_ERROR':
       return "We can’t reach the server. Are you online?";
+    case 'UNAUTHORIZED':
+      return 'Your session expired. Please sign in again.';
     case 'SERVER_ERROR':
     case 'SERVICE_UNAVAILABLE':
       return "We’re having trouble on our end. If you were idle for a while, try again or sign in again.";

@@ -31,26 +31,34 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
     _shopping = ShoppingApi(_api);
 
     () async {
-      final me = await AuthApi(_api).getMe();
-      final myRoom = await RoomApi(_api).getMyRoom();
-      final roomId = myRoom.room?.id;
+      try {
+        final me = await AuthApi(_api).getMe();
+        final myRoom = await RoomApi(_api).getMyRoom();
+        final roomId = myRoom.room?.id;
 
-      List<ShoppingItemDto> items = [];
-      if (roomId != null) {
-        items = await _shopping.list(roomId);
+        List<ShoppingItemDto> items = [];
+        if (roomId != null) {
+          items = await _shopping.list(roomId);
+        }
+        _byList
+          ..clear()
+          ..addAll(_groupByList(items));
+
+        setState(() {
+          _userId = me.id;
+          _userName = me.firstName;
+          _roomId = roomId;
+          _selectedList =
+              _byList.keys.isNotEmpty ? _byList.keys.first : 'General';
+          _bootLoading = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _bootLoading = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) showSnack(context, defaultErrorMessage);
+        });
       }
-      _byList
-        ..clear()
-        ..addAll(_groupByList(items));
-
-      setState(() {
-        _userId = me.id;
-        _userName = me.firstName;
-        _roomId = roomId;
-        _selectedList =
-            _byList.keys.isNotEmpty ? _byList.keys.first : 'General';
-        _bootLoading = false;
-      });
     }();
   }
 

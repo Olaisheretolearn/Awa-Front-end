@@ -1,7 +1,7 @@
 // lib/api/auth_api.dart
-import 'package:dio/dio.dart';
 import 'client.dart';
 import 'model.dart';
+import 'session_controller.dart';
 
 class AuthApi {
   final ApiClient _c;
@@ -30,6 +30,8 @@ class AuthApi {
     });
     final auth = AuthResponse.fromJson(res.data);
     await _c.storage.saveTokens(auth.accessToken, auth.refreshToken);
+    _c.authInterceptor.markSignedIn();
+    SessionController.instance.markSignedIn();
     return auth;
   }
 
@@ -47,9 +49,13 @@ class AuthApi {
     required String userId,
     required String avatarId,
   }) async {
-    final res = await _c.dio.patch('/users/$userId', data: {'avatarId': avatarId});
+    final res =
+        await _c.dio.patch('/users/$userId', data: {'avatarId': avatarId});
     return UserResponse.fromJson(res.data);
   }
 
-  Future<void> signOut() => _c.storage.clear();
+  Future<void> signOut() async {
+    await _c.storage.clear();
+    await SessionController.instance.markSignedOut();
+  }
 }

@@ -5,15 +5,14 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:awa_app/main.dart';
 
 void main() {
-  testWidgets('App builds with a start widget', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp(start: Placeholder()));
+  testWidgets('App builds its session gate', (WidgetTester tester) async {
+    await tester.pumpWidget(const MyApp());
 
-    expect(find.byType(Placeholder), findsOneWidget);
+    expect(find.byType(MyApp), findsOneWidget);
   });
 }
