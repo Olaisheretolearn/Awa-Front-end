@@ -46,8 +46,10 @@ android {
 
     buildTypes {
       release {
-    minifyEnabled true
-    shrinkResources true
+    // Keep Flutter's embedding and plugins intact. R8 stripping can prevent the
+    // first Flutter frame from being drawn, leaving a release build on splash.
+    minifyEnabled false
+    shrinkResources false
     proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                   'proguard-rules.pro'
     signingConfig signingConfigs.release
