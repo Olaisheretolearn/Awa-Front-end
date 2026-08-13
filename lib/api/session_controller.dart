@@ -7,6 +7,10 @@ import 'auth_storage.dart';
 class SessionController extends ChangeNotifier {
   SessionController._();
 
+  @visibleForTesting
+  SessionController.test({bool? hasStoredSession})
+      : _hasStoredSession = hasStoredSession;
+
   static final SessionController instance = SessionController._();
 
   bool? _hasStoredSession;
@@ -18,8 +22,8 @@ class SessionController extends ChangeNotifier {
     final storage = AuthStorage();
     final access = await storage.access;
     final refresh = await storage.refresh;
-    _hasStoredSession = (access?.isNotEmpty ?? false) ||
-        (refresh?.isNotEmpty ?? false);
+    _hasStoredSession =
+        (access?.isNotEmpty ?? false) || (refresh?.isNotEmpty ?? false);
     _wasInvalidated = false;
     notifyListeners();
   }

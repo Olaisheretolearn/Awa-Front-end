@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import '../widgets/currency_picker_bottom_sheet.dart';
-import '../screens/create_join_flat_screen.dart';
 import '../api/app_error.dart';
 
 import '../api/client.dart';
@@ -11,7 +10,7 @@ import '../api/auth_api.dart';
 import '../api/room_api.dart';
 import '../api/model.dart';
 import '../utils/url_utils.dart';
-import 'signin_screen.dart';
+import '../state/app_scope.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String? userId;
@@ -87,6 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _leaveHousehold() async {
     if (_me == null) return;
+    final flow = AppScope.read(context);
 
     final ok = await showDialog<bool>(
       context: context,
@@ -119,16 +119,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       setState(() {
         _roomCode = null;
-        _me = _me!.copyWith(roomId: null);
+        _me = _me!.copyWith(clearRoomId: true);
       });
 
       // close loader
       Navigator.of(context).pop();
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const CreateJoinFlatScreen()),
-        (route) => false,
-      );
+      await flow.resolveAuthenticatedState();
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -226,16 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     title: 'Log Out',
                                     color: Colors.red,
                                     onTap: () async {
-                                      await _auth.signOut();
-
-                                      if (!mounted) return;
-
-                                      Navigator.of(context).pushAndRemoveUntil(
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const SignInScreen()),
-                                        (route) => false,
-                                      );
+                                      await AppScope.read(context).signOut();
                                     },
                                   ),
                                 ]),

@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'reset_password_screen.dart';
-import 'pick_avatar_screen.dart';
 import 'package:dio/dio.dart';
 import '../utils/ui_helpers.dart';
 import '../api/client.dart';
 import '../api/auth_api.dart';
-import 'home_screen.dart';
-import 'create_join_flat_screen.dart';
+import '../state/app_scope.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -246,42 +244,13 @@ class _SignInScreenState extends State<SignInScreen>
                     child: ElevatedButton(
                       onPressed: () async {
                         final api = AuthApi(ApiClient.dev());
+                        final flow = AppScope.read(context);
                         try {
                           await api.signIn(
                             email: _emailController.text.trim(),
                             password: _passwordController.text,
                           );
-
-                          // get current user
-                          final me = await api.getMe();
-
-                          if (!mounted) return;
-
-                          // after: final me = await api.getMe();
-                          if (!mounted) return;
-
-                          if (me.avatarId == null) {
-                            // they haven't chosen an avatar yet
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      const AvatarSelectionScreen()),
-                            );
-                          } else if (me.roomId == null) {
-                            // Has avatar but no room yet → go create/join
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const CreateJoinFlatScreen()),
-                            );
-                          } else {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const HomeScreen()),
-                            );
-                          }
+                          await flow.resolveAuthenticatedState();
                         } on DioException catch (e) {
                           showSnack(context, extractMsg(e));
                         } catch (e) {

@@ -5,23 +5,20 @@ import 'shared_bottom_nav.dart';
 import '../api/client.dart';
 import '../api/messages_api.dart';
 import '../api/model_message.dart';
-import '../api/auth_api.dart';
 import '../api/model.dart';
-import '../api/room_api.dart';
+import '../state/app_flow_state.dart';
 import '../utils/url_utils.dart';
 import 'package:flutter/services.dart';
 import '../widgets/exit_app_guard.dart';
 import '../utils/ui_helpers.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String roomId;
-  final String userId;
-
   const ChatScreen({
     super.key,
-    required this.roomId,
-    required this.userId,
+    required this.roomSession,
   });
+
+  final RoomSession roomSession;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -58,10 +55,20 @@ class _ChatScreenState extends State<ChatScreen> {
     _client = ApiClient.dev();
     _api = MessagesApi(_client);
 
-    _roomId = widget.roomId;
-    _userId = widget.userId;
+    _roomId = widget.roomSession.roomId;
+    _userId = widget.roomSession.userId;
+    _userName = widget.roomSession.currentUser.firstName;
+    _roomName = widget.roomSession.room.name;
+    _members = widget.roomSession.members;
+    _nameById = {
+      for (final member in _members)
+        member.id: member.id == _userId ? _userName : member.firstName,
+    };
+    _avatarUrlById = {
+      for (final member in _members) member.id: member.avatarImageUrl,
+    };
 
-    _initMeAndLoad();
+    _loadInitial();
   }
 
   Future<void> _openReactionPicker(MessageResponse m) async {
@@ -112,41 +119,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _loadMembers() async {
-    final members = await RoomApi(_client).getMembers(_roomId);
-    setState(() {
-      _members = members;
-      _nameById = {
-        for (final m in members)
-          m.id: (m.id == _userId ? _userName : m.firstName),
-      };
-      _avatarUrlById = {for (final m in members) m.id: m.avatarImageUrl};
-    });
-  }
-
-  Future<void> _initMeAndLoad() async {
-    try {
-      final me = await AuthApi(_client).getMe();
-      _userName = me.firstName;
-    } catch (_) {}
-
-    // A failed member lookup must not prevent message loading from completing.
-    try {
-      await _loadMembers();
-    } catch (_) {
-      // Message responses include sender names, so the chat can still load.
-    }
-    await _loadInitial();
-
-    try {
-      final room = await RoomApi(_client).getRoom(_roomId);
-      setState(() => _roomName = room.name);
-    } catch (_) {}
-  }
-
   Future<void> _loadInitial() async {
     try {
       final ms = await _api.list(_roomId);
+      if (!mounted) return;
       setState(() {
         _msgs = ms;
         _lastFetch = _msgs.isNotEmpty ? _msgs.last.timestamp : null;
@@ -154,6 +130,7 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _scrollToBottom();
     } catch (_) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
@@ -280,9 +257,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         bottomNavigationBar: SharedBottomNav(
           currentIndex: 3,
-          roomId: _roomId,
-          userId: _userId,
-          shouldPop: false,
+          roomSession: widget.roomSession,
         ),
       ),
     );

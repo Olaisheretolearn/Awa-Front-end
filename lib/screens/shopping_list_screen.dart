@@ -3,13 +3,17 @@ import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'shared_bottom_nav.dart';
 import '../api/client.dart';
-import '../api/auth_api.dart';
-import '../api/room_api.dart';
 import '../api/shopping_api.dart';
 import 'payment_page.dart';
 import '../utils/ui_helpers.dart';
+import '../navigation/room_required_route.dart';
+import '../state/app_flow_state.dart';
 
 class ShoppingListPage extends StatefulWidget {
+  const ShoppingListPage({super.key, required this.roomSession});
+
+  final RoomSession roomSession;
+
   @override
   _ShoppingListPageState createState() => _ShoppingListPageState();
 }
@@ -32,22 +36,17 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
 
     () async {
       try {
-        final me = await AuthApi(_api).getMe();
-        final myRoom = await RoomApi(_api).getMyRoom();
-        final roomId = myRoom.room?.id;
-
-        List<ShoppingItemDto> items = [];
-        if (roomId != null) {
-          items = await _shopping.list(roomId);
-        }
+        final roomSession = widget.roomSession;
+        final items = await _shopping.list(roomSession.roomId);
         _byList
           ..clear()
           ..addAll(_groupByList(items));
 
+        if (!mounted) return;
         setState(() {
-          _userId = me.id;
-          _userName = me.firstName;
-          _roomId = roomId;
+          _userId = roomSession.userId;
+          _userName = roomSession.currentUser.firstName;
+          _roomId = roomSession.roomId;
           _selectedList =
               _byList.keys.isNotEmpty ? _byList.keys.first : 'General';
           _bootLoading = false;
@@ -617,11 +616,10 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
               onPressed: () async {
                 final ok = await Navigator.push<bool>(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => PaymentPage(
+                  RoomRequiredRoute.build(
+                    (_, session) => PaymentPage(
                       selectedItems: _currentListNames(),
-                      roomId: _roomId!,
-                      userId: _userId!,
+                      roomSession: session,
                     ),
                   ),
                 );
@@ -666,7 +664,10 @@ class _ShoppingListPageState extends State<ShoppingListPage> {
         );
       }),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      bottomNavigationBar: const SharedBottomNav(currentIndex: 1),
+      bottomNavigationBar: SharedBottomNav(
+        currentIndex: 1,
+        roomSession: widget.roomSession,
+      ),
     );
   }
 

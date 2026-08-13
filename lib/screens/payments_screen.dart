@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'shared_bottom_nav.dart';
+import '../state/app_flow_state.dart';
 
 class PaymentsScreen extends StatefulWidget {
-  const PaymentsScreen({super.key});
+  const PaymentsScreen({super.key, required this.roomSession});
+
+  final RoomSession roomSession;
 
   @override
   State<PaymentsScreen> createState() => _PaymentsScreenState();
@@ -22,7 +25,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
           children: [
             // Header
             _buildHeader(),
-            
+
             // Content
             Expanded(
               child: Container(
@@ -37,10 +40,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                   children: [
                     // Payments header card
                     _buildPaymentsHeaderCard(),
-                    
+
                     // Filter buttons
                     _buildFilterButtons(),
-                    
+
                     // Payments list
                     Expanded(
                       child: _buildPaymentsList(),
@@ -52,7 +55,10 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
+      bottomNavigationBar: SharedBottomNav(
+        currentIndex: 2,
+        roomSession: widget.roomSession,
+      ),
     );
   }
 
@@ -104,7 +110,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-     color: const Color(0xFFF5F5F5),
+        color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -151,16 +157,19 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset('assets/images/money.png', width: 30, height: 30),
+                    Image.asset('assets/images/money.png',
+                        width: 30, height: 30),
                     const SizedBox(width: 8),
                     const Text(
                       '💰',
                       style: TextStyle(fontSize: 24),
                     ),
                     const SizedBox(width: 8),
-                    Image.asset('assets/images/star.png', width: 24, height: 24),
+                    Image.asset('assets/images/star.png',
+                        width: 24, height: 24),
                     const SizedBox(width: 16),
-                    Image.asset('assets/images/money.png', width: 32, height: 32),
+                    Image.asset('assets/images/money.png',
+                        width: 32, height: 32),
                   ],
                 ),
               ),
@@ -204,7 +213,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
   Widget _buildFilterButton(String title, int index) {
     final isSelected = _selectedFilterIndex == index;
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -415,5 +424,4 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       ),
     );
   }
-
 }

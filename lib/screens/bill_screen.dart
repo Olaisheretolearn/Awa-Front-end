@@ -7,9 +7,8 @@ import 'shared_bottom_nav.dart';
 import '../api/client.dart';
 import '../api/messages_api.dart';
 import '../api/model_message.dart';
-import '../api/auth_api.dart';
-import '../api/model.dart';
-import '../api/room_api.dart';
+import '../navigation/room_required_route.dart';
+import '../state/app_flow_state.dart';
 import '../utils/url_utils.dart';
 import 'package:flutter/services.dart';
 import '../api/bills_api.dart';
@@ -21,7 +20,9 @@ import '../utils/ui_helpers.dart';
 const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
 
 class BillsScreen extends StatefulWidget {
-  const BillsScreen({super.key});
+  const BillsScreen({super.key, required this.roomSession});
+
+  final RoomSession roomSession;
 
   @override
   State<BillsScreen> createState() => _BillsScreenState();
@@ -44,7 +45,6 @@ class _BillsScreenState extends State<BillsScreen> {
   double _youreOwed = 0.0;
 
   String? _roomId, _userId;
-  bool _bootLoading = true;
 
   @override
   void initState() {
@@ -57,18 +57,13 @@ class _BillsScreenState extends State<BillsScreen> {
       setState(() {});
     };
     CurrencyStore.symbol.addListener(_currencyListener);
-
-    () async {
-      final me = await AuthApi(_api).getMe();
-      final myRoom = await RoomApi(_api).getMyRoom();
-      setState(() {
-        _userId = me.id;
-        _roomId = myRoom.room?.id;
-        _nameOf = {for (final m in myRoom.members) m.id: m.firstName};
-        _bootLoading = false;
-      });
-      if (_roomId != null) _load();
-    }();
+    _userId = widget.roomSession.userId;
+    _roomId = widget.roomSession.roomId;
+    _nameOf = {
+      for (final member in widget.roomSession.members)
+        member.id: member.firstName,
+    };
+    _load();
   }
 
   @override
@@ -238,12 +233,14 @@ class _BillsScreenState extends State<BillsScreen> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _bills = bs;
         _youreOwed = owed;
         _loadingBills = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loadingBills = false);
     }
   }
@@ -289,11 +286,10 @@ class _BillsScreenState extends State<BillsScreen> {
               : () async {
                   final created = await Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => PaymentPage(
+                    RoomRequiredRoute.build(
+                      (_, session) => PaymentPage(
                         selectedItems: const ['New Expense'],
-                        roomId: _roomId!,
-                        userId: _userId!,
+                        roomSession: session,
                       ),
                     ),
                   );
@@ -302,7 +298,10 @@ class _BillsScreenState extends State<BillsScreen> {
           backgroundColor: AppColors.primaryBlue,
           child: const Icon(Icons.add, color: AppColors.white, size: 32),
         ),
-        bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
+        bottomNavigationBar: SharedBottomNav(
+          currentIndex: 2,
+          roomSession: widget.roomSession,
+        ),
       ),
     );
   }
