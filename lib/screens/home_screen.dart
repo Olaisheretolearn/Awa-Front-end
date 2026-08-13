@@ -1,4 +1,6 @@
 // Updated HomeScreen using SharedBottomNav
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
@@ -13,6 +15,7 @@ import '../api/client.dart';
 import '../api/model.dart';
 import '../navigation/room_required_route.dart';
 import '../state/app_flow_state.dart';
+import '../state/task_change_controller.dart';
 
 import '../utils/url_utils.dart';
 import '../utils/ui_helpers.dart';
@@ -43,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // apis
   late final ApiClient _api;
-  late final TasksApi _tasksApi;
+  late final TasksRepository _tasksApi;
   late final BillsApi _billsApi;
   late final ShoppingApi _shoppingApi;
 
@@ -57,6 +60,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _loading = true;
   String? _loadError;
+  bool _refreshingTasks = false;
+  bool _refreshTasksAgain = false;
+  final Set<String> _completingTaskIds = <String>{};
 
   int get _totalChores => _tasks.length;
   int get _totalShopping => _shopping.where((x) => !x.isBought).length;
@@ -73,7 +79,9 @@ class _HomeScreenState extends State<HomeScreen> {
   List<TaskDto> get _tasksForMe {
     final uid = _me?.id;
     if (uid == null) return [];
-    return _tasks.where((t) => t.assignedTo == uid).toList();
+    return _tasks
+        .where((task) => task.assignedTo == uid && !task.isComplete)
+        .toList();
   }
 
   List<TaskDto> get _homeTasks {
@@ -134,6 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _tasksApi = TasksApi(_api);
     _billsApi = BillsApi(_api);
     _shoppingApi = ShoppingApi(_api);
+    TaskChangeController.instance.addListener(_handleTaskChange);
     _applyRoomSession(widget.roomSession);
     _loadRoomData();
   }
@@ -159,14 +168,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final roomId = widget.roomSession.roomId;
       final results = await Future.wait([
-        _tasksApi.listByRoom(roomId),
+        _tasksApi.listActiveByRoom(roomId),
         _billsApi.listByRoom(roomId),
         _shoppingApi.list(roomId),
       ]);
 
       if (!mounted) return;
       setState(() {
-        _tasks = results[0] as List<TaskDto>;
+        _tasks = (results[0] as List<TaskDto>)
+            .where((task) => !task.isComplete)
+            .toList();
         _bills = results[1] as List<BillResponse>;
         _shopping = results[2] as List<ShoppingItemDto>;
         _loadError = null;
@@ -183,8 +194,42 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _handleTaskChange() {
+    final change = TaskChangeController.instance.lastChange;
+    if (change == null || change.roomId != widget.roomSession.roomId) return;
+    if (_refreshingTasks) {
+      _refreshTasksAgain = true;
+      return;
+    }
+    unawaited(_reloadActiveTasks());
+  }
+
+  Future<void> _reloadActiveTasks() async {
+    if (_refreshingTasks) {
+      _refreshTasksAgain = true;
+      return;
+    }
+    _refreshingTasks = true;
+    try {
+      do {
+        _refreshTasksAgain = false;
+        final tasks =
+            await _tasksApi.listActiveByRoom(widget.roomSession.roomId);
+        if (!mounted) return;
+        setState(() {
+          _tasks = tasks.where((task) => !task.isComplete).toList();
+        });
+      } while (_refreshTasksAgain);
+    } catch (_) {
+      // Keep the last known active list. The next app or task refresh retries.
+    } finally {
+      _refreshingTasks = false;
+    }
+  }
+
   @override
   void dispose() {
+    TaskChangeController.instance.removeListener(_handleTaskChange);
     _calendarController.dispose();
     super.dispose();
   }
@@ -812,12 +857,11 @@ class _HomeScreenState extends State<HomeScreen> {
           }();
           final iconName = assetFromIconEnum(t.iconId);
           return _buildChoreItem(
-            id: t.id,
+            task: t,
             date: date,
             icon: iconName,
             title: t.name,
             subtitle: subtitle,
-            isCompleted: false,
           );
         }),
       ],
@@ -825,13 +869,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildChoreItem({
-    required String id,
+    required TaskDto task,
     required String date,
     required String icon,
     required String title,
     required String subtitle,
-    required bool isCompleted,
   }) {
+    final id = task.id;
     final isExpanded = _choreExpanded[id] ?? false;
 
     return Column(
@@ -915,13 +959,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        if (isExpanded) _buildChoreDropdown(),
+        if (isExpanded) _buildChoreDropdown(task),
         const SizedBox(height: 12),
       ],
     );
   }
 
-  Widget _buildChoreDropdown() {
+  Widget _buildChoreDropdown(TaskDto task) {
+    final isCompleting = _completingTaskIds.contains(task.id);
     return Container(
       margin: const EdgeInsets.only(left: 72, top: 8),
       padding: const EdgeInsets.all(16),
@@ -943,9 +988,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Clean bathroom thoroughly, including toilet, shower, and sink.',
-            style: TextStyle(
+          Text(
+            (task.description ?? '').trim().isEmpty
+                ? 'No description provided.'
+                : task.description!.trim(),
+            style: const TextStyle(
               fontFamily: AppFonts.darkerGrotesque,
               fontSize: 14,
               color: Color(0xFF666666),
@@ -956,7 +1003,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: isCompleting ? null : () => _completeTask(task),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: AppColors.white,
@@ -964,14 +1011,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text(
-                    'Mark Complete',
-                    style: TextStyle(
-                      fontFamily: AppFonts.darkerGrotesque,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: isCompleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Mark Complete',
+                          style: TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -998,6 +1051,44 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _completeTask(TaskDto task) async {
+    if (_completingTaskIds.contains(task.id)) return;
+
+    setState(() => _completingTaskIds.add(task.id));
+    try {
+      final updated = await _tasksApi.markComplete(
+        widget.roomSession.roomId,
+        task.id,
+      );
+      if (!updated.isComplete || updated.id != task.id) {
+        throw const FormatException(
+          'The server did not confirm that the requested task was completed.',
+        );
+      }
+
+      TaskChangeController.instance.record(
+        roomId: widget.roomSession.roomId,
+        taskId: task.id,
+        mutation: TaskMutation.completed,
+      );
+      if (!mounted) return;
+      setState(() {
+        _tasks.removeWhere((item) => item.id == task.id);
+        _choreExpanded.remove(task.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yayyyyyyy Task done!')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showSnack(context, extractMsg(error));
+    } finally {
+      if (mounted) {
+        setState(() => _completingTaskIds.remove(task.id));
+      }
+    }
   }
 
 // REPLACE _buildExpenses()

@@ -8,21 +8,27 @@ import '../api/tasks_models.dart';
 import '../api/icon_map.dart';
 import '../api/model.dart';
 import '../state/app_flow_state.dart';
+import '../state/task_change_controller.dart';
 import '../utils/url_utils.dart';
 import '../widgets/exit_app_guard.dart';
 import '../utils/ui_helpers.dart';
 
 class TasksScreen extends StatefulWidget {
-  const TasksScreen({super.key, required this.roomSession});
+  const TasksScreen({
+    super.key,
+    required this.roomSession,
+    this.tasksRepository,
+  });
 
   final RoomSession roomSession;
+  final TasksRepository? tasksRepository;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  late final TasksApi _api;
+  late final TasksRepository _api;
   List<TaskDto> _tasks = [];
   bool _loading = true;
   String? _error;
@@ -30,6 +36,7 @@ class _TasksScreenState extends State<TasksScreen> {
   Map<String, String> _roommatesByName = {};
   Map<String, String> _nameById = {};
   final Set<String> _expandedTasks = <String>{};
+  final Set<String> _completingTaskIds = <String>{};
   List<UserResponse> _members = [];
 
   String get _roomId => widget.roomSession.roomId;
@@ -38,7 +45,7 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
-    _api = TasksApi(ApiClient.dev());
+    _api = widget.tasksRepository ?? TasksApi(ApiClient.dev());
     _load();
     _loadRoommates();
   }
@@ -82,10 +89,11 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Future<void> _load() async {
     try {
-      final items = await _api.listByRoom(_roomId);
+      final items = await _api.listActiveByRoom(_roomId);
       if (!mounted) return;
       setState(() {
-        _tasks = items;
+        _tasks = items.where((task) => !task.isComplete).toList();
+        _error = null;
         _loading = false;
       });
     } catch (e) {
@@ -352,6 +360,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Widget _buildTaskDropdown(TaskDto task) {
+    final isCompleting = _completingTaskIds.contains(task.id);
     return Container(
       margin: const EdgeInsets.only(left: 62, right: 16, bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -388,40 +397,27 @@ class _TasksScreenState extends State<TasksScreen> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      final updated =
-                          await _api.markComplete(_roomId, task.id, _userId);
-                      setState(() {
-                        _tasks = _tasks
-                            .map((t) => t.id == updated.id ? updated : t)
-                            .toList();
-                        _expandedTasks.remove(task.id);
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Yayyyyyyy Task done!")),
-                      );
-                    } catch (_) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Sure that's your task? 😅")),
-                      );
-                    }
-                  },
+                  onPressed: isCompleting ? null : () => _completeTask(task),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: AppColors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text(
-                    'Mark Complete',
-                    style: TextStyle(
-                      fontFamily: AppFonts.darkerGrotesque,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: isCompleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Mark Complete',
+                          style: TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -429,11 +425,18 @@ class _TasksScreenState extends State<TasksScreen> {
                 onPressed: () async {
                   try {
                     await _api.delete(_roomId, task.id);
+                    if (!mounted) return;
                     setState(() {
                       _tasks.removeWhere((t) => t.id == task.id);
                       _expandedTasks.remove(task.id);
                     });
+                    TaskChangeController.instance.record(
+                      roomId: _roomId,
+                      taskId: task.id,
+                      mutation: TaskMutation.deleted,
+                    );
                   } catch (_) {
+                    if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text(defaultErrorMessage)),
                     );
@@ -459,6 +462,43 @@ class _TasksScreenState extends State<TasksScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _completeTask(TaskDto task) async {
+    if (_completingTaskIds.contains(task.id)) return;
+
+    setState(() => _completingTaskIds.add(task.id));
+    try {
+      final updated = await _api.markComplete(_roomId, task.id);
+      if (!updated.isComplete || updated.id != task.id) {
+        throw const FormatException(
+          'The server did not confirm that the requested task was completed.',
+        );
+      }
+
+      TaskChangeController.instance.record(
+        roomId: _roomId,
+        taskId: task.id,
+        mutation: TaskMutation.completed,
+      );
+      if (!mounted) return;
+      setState(() {
+        _tasks.removeWhere((item) => item.id == task.id);
+        _expandedTasks.remove(task.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yayyyyyyy Task done!')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Sure that's your task? 😅")),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _completingTaskIds.remove(task.id));
+      }
+    }
   }
 
   String friendlyCompleteError({
@@ -501,7 +541,13 @@ class _TasksScreenState extends State<TasksScreen> {
         onSubmit: (TaskCreateReq req) async {
           try {
             final created = await _api.create(_roomId, req);
+            if (!mounted) return;
             setState(() => _tasks = [..._tasks, created]);
+            TaskChangeController.instance.record(
+              roomId: _roomId,
+              taskId: created.id,
+              mutation: TaskMutation.created,
+            );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
@@ -512,6 +558,7 @@ class _TasksScreenState extends State<TasksScreen> {
               ),
             );
           } catch (e) {
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text(defaultErrorMessage)));
           }
