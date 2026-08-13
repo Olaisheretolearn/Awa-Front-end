@@ -3,8 +3,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import '../api/client.dart';
 import '../api/room_api.dart';
-import '../api/auth_api.dart';
-import 'home_screen.dart';
+import '../state/app_scope.dart';
 
 class CreateSharedFlatScreen extends StatefulWidget {
   const CreateSharedFlatScreen({super.key});
@@ -162,7 +161,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
   Widget build(BuildContext context) {
     final api = ApiClient.dev();
     final roomApi = RoomApi(api);
-    final authApi = AuthApi(api);
+    final flow = AppScope.read(context);
 
     return Scaffold(
       body: Container(
@@ -342,9 +341,11 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                                 return;
                               }
                               try {
-                                // if you already store userId after login, use that here:
-                                final me =
-                                    await authApi.getMe(); // UserResponse
+                                final me = flow.currentUser;
+                                if (me == null) {
+                                  await flow.resolveAuthenticatedState();
+                                  return;
+                                }
                                 final room = await roomApi.createRoom(
                                     name: name, ownerId: me.id, city: city);
 
@@ -365,12 +366,7 @@ class _CreateSharedFlatScreenState extends State<CreateSharedFlatScreen>
                                       );
                                     });
 
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => const HomeScreen()),
-                                  (route) => false,
-                                );
+                                await flow.resolveAuthenticatedState();
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(

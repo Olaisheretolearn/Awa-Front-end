@@ -1,22 +1,21 @@
 // Updated HomeScreen using SharedBottomNav
 import 'package:flutter/material.dart';
-import 'dart:async';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import 'chat_screen.dart';
 import 'shopping_list_screen.dart';
 import 'bill_screen.dart';
-import 'shared_bottom_nav.dart'; 
+import 'shared_bottom_nav.dart';
 import 'dart:math';
 import 'settings_screen.dart';
 import 'task_screen.dart';
 import '../api/client.dart';
-import '../api/auth_api.dart';
-import '../api/room_api.dart';
 import '../api/model.dart';
-import 'create_join_flat_screen.dart';
+import '../navigation/room_required_route.dart';
+import '../state/app_flow_state.dart';
 
 import '../utils/url_utils.dart';
+import '../utils/ui_helpers.dart';
 import 'package:flutter/services.dart';
 import '../api/bills_api.dart';
 import '../api/bills_models.dart';
@@ -25,17 +24,16 @@ import '../api/shopping_api.dart';
 import '../api/tasks_models.dart';
 import '../api/icon_map.dart';
 
-
-
-
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, required this.roomSession});
+
+  final RoomSession roomSession;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> {
   late PageController _calendarController;
   late DateTime _currentDate;
   int _currentWeekIndex = 0;
@@ -43,79 +41,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _roomId;
   bool _bootLoading = true;
 
-
   // apis
   late final ApiClient _api;
-late final AuthApi _auth;
-late final RoomApi _rooms;
-late final TasksApi _tasksApi;
-late final BillsApi _billsApi;
-late final ShoppingApi _shoppingApi;
+  late final TasksApi _tasksApi;
+  late final BillsApi _billsApi;
+  late final ShoppingApi _shoppingApi;
 
-UserResponse? _me;
-RoomResponse? _room;
-List<UserResponse> _members = [];
+  UserResponse? _me;
+  RoomResponse? _room;
+  List<UserResponse> _members = [];
 
-List<TaskDto> _tasks = [];
-List<BillResponse> _bills = [];
-List<ShoppingItemDto> _shopping = [];
+  List<TaskDto> _tasks = [];
+  List<BillResponse> _bills = [];
+  List<ShoppingItemDto> _shopping = [];
 
-bool _loading = true;
-String? _loadError;
-bool _refreshingAfterResume = false;
+  bool _loading = true;
+  String? _loadError;
 
-int get _totalChores => _tasks.length; 
-int get _totalShopping => _shopping.where((x) => !x.isBought).length;
+  int get _totalChores => _tasks.length;
+  int get _totalShopping => _shopping.where((x) => !x.isBought).length;
 
-List<BillResponse> get _unpaidBillsForMe {
-  final uid = _me?.id;
-  if (uid == null) return const [];
-  return _bills.where((b) =>
-    b.shares.any((s) => s.userId == uid && s.status != 'CONFIRMED')
-  ).toList();
-}
-
-List<TaskDto> get _tasksForMe {
-  final uid = _me?.id;
-  if (uid == null) return [];
-  return _tasks.where((t) => t.assignedTo == uid).toList();
-}
-
-List<TaskDto> get _homeTasks {
-  final now = DateTime.now().toUtc();
-  final list = List<TaskDto>.from(_tasksForMe); 
-  list.sort((a, b) {
-    final da = (a.nextDueDateUtc ?? a.createdDateUtc);
-    final db = (b.nextDueDateUtc ?? b.createdDateUtc);
-    return da.compareTo(db);
-  });
-
-  final upcoming = list.where((t) {
-    final d = (t.nextDueDateUtc ?? t.createdDateUtc).toUtc();
-    return d.isAfter(now);
-  }).toList();
-
-  if (upcoming.isNotEmpty) return [upcoming.first]; 
-  return list.take(2).toList();
-}
-
-
-double get _totalOwedByMe {
-  final uid = _me?.id;
-  if (uid == null) return 0;
-  double sum = 0;
-  for (final b in _bills) {
-    for (final s in b.shares) {
-      if (s.userId == uid && s.status != 'CONFIRMED') sum += s.amount;
-    }
+  List<BillResponse> get _unpaidBillsForMe {
+    final uid = _me?.id;
+    if (uid == null) return const [];
+    return _bills
+        .where((b) =>
+            b.shares.any((s) => s.userId == uid && s.status != 'CONFIRMED'))
+        .toList();
   }
-  return sum;
-}
 
-String _mon(int m) => const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1];
+  List<TaskDto> get _tasksForMe {
+    final uid = _me?.id;
+    if (uid == null) return [];
+    return _tasks.where((t) => t.assignedTo == uid).toList();
+  }
 
+  List<TaskDto> get _homeTasks {
+    final now = DateTime.now().toUtc();
+    final list = List<TaskDto>.from(_tasksForMe);
+    list.sort((a, b) {
+      final da = (a.nextDueDateUtc ?? a.createdDateUtc);
+      final db = (b.nextDueDateUtc ?? b.createdDateUtc);
+      return da.compareTo(db);
+    });
 
-  
+    final upcoming = list.where((t) {
+      final d = (t.nextDueDateUtc ?? t.createdDateUtc).toUtc();
+      return d.isAfter(now);
+    }).toList();
+
+    if (upcoming.isNotEmpty) return [upcoming.first];
+    return list.take(2).toList();
+  }
+
+  double get _totalOwedByMe {
+    final uid = _me?.id;
+    if (uid == null) return 0;
+    double sum = 0;
+    for (final b in _bills) {
+      for (final s in b.shares) {
+        if (s.userId == uid && s.status != 'CONFIRMED') sum += s.amount;
+      }
+    }
+    return sum;
+  }
+
+  String _mon(int m) => const [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ][m - 1];
+
   // Expandable states
   final Map<String, bool> _choreExpanded = {};
   final Map<String, bool> _billExpanded = {};
@@ -123,85 +128,63 @@ String _mon(int m) => const ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Se
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _currentDate = DateTime.now();
     _calendarController = PageController(initialPage: 1000);
     _api = ApiClient.dev();
-    _auth = AuthApi(_api);
-    _rooms = RoomApi(_api);
     _tasksApi = TasksApi(_api);
     _billsApi = BillsApi(_api);
     _shoppingApi = ShoppingApi(_api);
-    _bootstrapIds();
+    _applyRoomSession(widget.roomSession);
+    _loadRoomData();
+  }
+
+  void _applyRoomSession(RoomSession roomSession) {
+    _me = roomSession.currentUser;
+    _room = roomSession.room;
+    _roomId = roomSession.roomId;
+    _userId = roomSession.userId;
+    _members = roomSession.members;
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      unawaited(_reloadAfterResume());
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.roomSession.roomId != widget.roomSession.roomId) {
+      _applyRoomSession(widget.roomSession);
+      _loadRoomData();
     }
   }
 
-  Future<void> _reloadAfterResume() async {
-    if (_bootLoading || _refreshingAfterResume) return;
-    _refreshingAfterResume = true;
-    await _bootstrapIds();
-    _refreshingAfterResume = false;
-  }
-
-Future<void> _bootstrapIds() async {
-  try {
-    final me = await _auth.getMe();
-    final myRoom = await _rooms.getMyRoom();
-
-    final room = myRoom.room;
-    final roomId = room?.id;
-    List<UserResponse> members = [];
-    List<TaskDto> tasks = [];
-    List<BillResponse> bills = [];
-    List<ShoppingItemDto> shopping = [];
-
-    if (roomId != null) {
+  Future<void> _loadRoomData() async {
+    try {
+      final roomId = widget.roomSession.roomId;
       final results = await Future.wait([
-        _rooms.getMembers(roomId),
         _tasksApi.listByRoom(roomId),
         _billsApi.listByRoom(roomId),
         _shoppingApi.list(roomId),
       ]);
-      members = results[0] as List<UserResponse>;
-      tasks = results[1] as List<TaskDto>;
-      bills = results[2] as List<BillResponse>;
-      shopping = results[3] as List<ShoppingItemDto>;
+
+      if (!mounted) return;
+      setState(() {
+        _tasks = results[0] as List<TaskDto>;
+        _bills = results[1] as List<BillResponse>;
+        _shopping = results[2] as List<ShoppingItemDto>;
+        _loadError = null;
+        _bootLoading = false;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = extractMsg(error);
+        _bootLoading = false;
+        _loading = false;
+      });
     }
-
-    if (!mounted) return;
-    setState(() {
-      _me = me;
-      _room = room;
-      _roomId = roomId;
-      _userId = me.id;
-      _members = members;
-      _tasks = tasks;
-      _bills = bills;
-      _shopping = shopping;
-      _loadError = null;
-      _bootLoading = false;
-      _loading = false;
-    });
-  } catch (_) {
-    if (!mounted) return;
-    setState(() {
-      _loadError = 'Could not refresh your home data.';
-      _bootLoading = false;
-      _loading = false;
-    });
   }
-}
-
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _calendarController.dispose();
     super.dispose();
   }
@@ -210,65 +193,50 @@ Future<void> _bootstrapIds() async {
   void _onActivityCardTap(String type) {
     switch (type) {
       case 'chores':
-         if (_roomId == null || _userId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Create or join a room first')),
+        Navigator.push(
+          context,
+          RoomRequiredRoute.build(
+            (_, session) => TasksScreen(roomSession: session),
+          ),
         );
-        return;
-      }
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => TasksScreen(roomId: _roomId!, userId: _userId!),
-        ),
-      );
         break;
       case 'shopping':
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ShoppingListPage()),
+          RoomRequiredRoute.build(
+            (_, session) => ShoppingListPage(roomSession: session),
+          ),
         );
         break;
       case 'bills':
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const BillsScreen()),
+          RoomRequiredRoute.build(
+            (_, session) => BillsScreen(roomSession: session),
+          ),
         );
         break;
     }
   }
 
   Future<void> _openChat() async {
-  if (_roomId == null || _userId == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Create or join a room first')),
+    Navigator.push(
+      context,
+      RoomRequiredRoute.build(
+        (_, session) => ChatScreen(roomSession: session),
+      ),
     );
-    return;
   }
 
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => ChatScreen(roomId: _roomId!, userId: _userId!),
-    ),
-  );
-}
-
-List<TaskDto> get _sortedByDate {
-  final list = List<TaskDto>.from(_tasks);
-  list.sort((a, b) {
-    final da = (a.nextDueDateUtc ?? a.createdDateUtc);
-    final db = (b.nextDueDateUtc ?? b.createdDateUtc);
-    return da.compareTo(db);
-  });
-  return list;
-}
-
-
-
-
-
-
+  List<TaskDto> get _sortedByDate {
+    final list = List<TaskDto>.from(_tasks);
+    list.sort((a, b) {
+      final da = (a.nextDueDateUtc ?? a.createdDateUtc);
+      final db = (b.nextDueDateUtc ?? b.createdDateUtc);
+      return da.compareTo(db);
+    });
+    return list;
+  }
 
   List<DateTime> _getWeekDates(DateTime baseDate, int weekOffset) {
     final startOfWeek = baseDate.subtract(Duration(days: baseDate.weekday - 1));
@@ -281,204 +249,208 @@ List<TaskDto> get _sortedByDate {
     return days[weekday - 1];
   }
 
-@override
-Widget build(BuildContext context) {
-  if (_bootLoading) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  }
+  @override
+  Widget build(BuildContext context) {
+    if (_bootLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-  if (_loadError != null && _me == null) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+    if (_loadError != null && _me == null) {
+      return Scaffold(
+        backgroundColor: AppColors.white,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_loadError!, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: _loadRoomData,
+                  child: const Text('Try again'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return WillPopScope(
+      onWillPop: _onWillPop, // 👈 intercept
+      child: Scaffold(
+        backgroundColor: AppColors.white,
+        body: SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_loadError!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _bootstrapIds,
-                child: const Text('Try again'),
+              _buildHeader(),
+              _buildCalendar(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHouseActivities(),
+                      const SizedBox(height: 24),
+                      _buildUpcomingChores(),
+                      const SizedBox(height: 24),
+                      _buildExpenses(),
+                      const SizedBox(height: 24),
+                      _buildMessagesCard(),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
+        ),
+        bottomNavigationBar: SharedBottomNav(
+          currentIndex: 0,
+          roomSession: widget.roomSession,
         ),
       ),
     );
   }
 
-  return WillPopScope(
-    onWillPop: _onWillPop, // 👈 intercept
-    child: Scaffold(
-      backgroundColor: AppColors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildCalendar(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+  Future<bool> _onWillPop() async {
+    final shouldExit = await _showExitSheet();
+    if (shouldExit == true) {
+      // Close app on Android; on iOS this will just pop current route (usually no-op on root).
+      await SystemNavigator.pop();
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool?> _showExitSheet() {
+    HapticFeedback.selectionClick();
+
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black26,
+      builder: (_) {
+        final media = MediaQuery.of(context);
+        final maxHeight = media.size.height * 0.40;
+
+        return SafeArea(
+          top: false,
+          child: Container(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // drag handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE6E6E6),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // icon / illustration area (match your style)
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.exit_to_app,
+                      size: 28, color: AppColors.primaryBlue),
+                ),
+                const SizedBox(height: 16),
+
+                const Text(
+                  'Exit Awa?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: AppFonts.darkerGrotesque,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.black,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Are you sure you want to exit the app?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: AppFonts.darkerGrotesque,
+                    fontSize: 14,
+                    color: Color(0xFF666666),
+                    height: 1.3,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
                   children: [
-                    _buildHouseActivities(),
-                    const SizedBox(height: 24),
-                    _buildUpcomingChores(),
-                    const SizedBox(height: 24),
-                    _buildExpenses(),
-                    const SizedBox(height: 24),
-                    _buildMessagesCard(),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.primaryBlue),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          'Stay',
+                          style: TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryBlue,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          'Exit app',
+                          style: TextStyle(
+                            fontFamily: AppFonts.darkerGrotesque,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SharedBottomNav(
-        currentIndex: 0, roomId: _roomId, userId: _userId,
-      ),
-    ),
-  );
-}
-
-Future<bool> _onWillPop() async {
-  final shouldExit = await _showExitSheet();
-  if (shouldExit == true) {
-    // Close app on Android; on iOS this will just pop current route (usually no-op on root).
-    await SystemNavigator.pop();
-    return true;
+          ),
+        );
+      },
+    );
   }
-  return false; 
-}
-
-Future<bool?> _showExitSheet() {
-  HapticFeedback.selectionClick();
-
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true, 
-    backgroundColor: Colors.transparent, 
-    barrierColor: Colors.black26,
-    builder: (_) {
-      final media = MediaQuery.of(context);
-      final maxHeight = media.size.height * 0.40;
-
-      return SafeArea(
-        top: false,
-        child: Container(
-          constraints: BoxConstraints(maxHeight: maxHeight),
-          decoration: const BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // drag handle
-              Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE6E6E6),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // icon / illustration area (match your style)
-              Container(
-                width: 64, height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryBlue.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.exit_to_app, size: 28, color: AppColors.primaryBlue),
-              ),
-              const SizedBox(height: 16),
-
-              const Text(
-                'Exit Awa?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: AppFonts.darkerGrotesque,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.black,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              const Text(
-                'Are you sure you want to exit the app?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: AppFonts.darkerGrotesque,
-                  fontSize: 14,
-                  color: Color(0xFF666666),
-                  height: 1.3,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.primaryBlue),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text(
-                        'Stay',
-                        style: TextStyle(
-                          fontFamily: AppFonts.darkerGrotesque,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryBlue,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: AppColors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text(
-                        'Exit app',
-                        style: TextStyle(
-                          fontFamily: AppFonts.darkerGrotesque,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-
 
   // Widget _buildHeader() {
   //   return Padding(
@@ -546,73 +518,77 @@ Future<bool?> _showExitSheet() {
   //   );
   // }
 
+  Widget _buildHeader() {
+    final avatar = _me?.avatarImageUrl;
+    final first = _me?.firstName ?? 'You';
 
-
-Widget _buildHeader() {
-  final avatar = _me?.avatarImageUrl;
-  final first = _me?.firstName ?? 'You';
-
-  return Padding(
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      children: [
-        GestureDetector(
-          onTap: () {
-           // Where you open Settings (e.g., HomeScreen)
-Navigator.of(context).push(
-  PageRouteBuilder(
-    opaque: false,
-    pageBuilder: (_, __, ___) => SettingsScreen(
-      userId: _userId,   
-      roomId: _roomId,  
-    ),
-    transitionsBuilder: (_, a, __, child) => SlideTransition(
-      position: a.drive(Tween(begin: const Offset(-1,0), end: Offset.zero)
-        .chain(CurveTween(curve: Curves.easeOutCubic))),
-      child: child,
-    ),
-  ),
-);
-
-          },
-          child: Container(
-            width: 40, height: 40,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primaryBlue),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: (avatar != null)
-                  ? Image.network(absoluteUrl(avatar), fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Image.asset('assets/images/avatar_1.png', fit: BoxFit.cover))
-                  : Image.asset('assets/images/avatar_1.png', fit: BoxFit.cover),
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              // Where you open Settings (e.g., HomeScreen)
+              Navigator.of(context).push(
+                PageRouteBuilder(
+                  opaque: false,
+                  pageBuilder: (_, __, ___) => SettingsScreen(
+                    userId: _userId,
+                    roomId: _roomId,
+                  ),
+                  transitionsBuilder: (_, a, __, child) => SlideTransition(
+                    position: a.drive(
+                        Tween(begin: const Offset(-1, 0), end: Offset.zero)
+                            .chain(CurveTween(curve: Curves.easeOutCubic))),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                  shape: BoxShape.circle, color: AppColors.primaryBlue),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: (avatar != null)
+                    ? Image.network(absoluteUrl(avatar),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                            'assets/images/avatar_1.png',
+                            fit: BoxFit.cover))
+                    : Image.asset('assets/images/avatar_1.png',
+                        fit: BoxFit.cover),
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          'Hi, $first',
-          style: const TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppColors.black,
+          const SizedBox(width: 12),
+          Text(
+            'Hi, $first',
+            style: const TextStyle(
+              fontFamily: AppFonts.darkerGrotesque,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.black,
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Image.asset('assets/images/star.png', width: 20, height: 20),
-        const Spacer(),
-        const Text('Home',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: AppColors.black,
+          const SizedBox(width: 8),
+          Image.asset('assets/images/star.png', width: 20, height: 20),
+          const Spacer(),
+          const Text(
+            'Home',
+            style: TextStyle(
+              fontFamily: AppFonts.darkerGrotesque,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.black,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
-
+        ],
+      ),
+    );
+  }
 
   Widget _buildCalendar() {
     return Container(
@@ -627,21 +603,22 @@ Navigator.of(context).push(
         itemBuilder: (context, index) {
           final weekOffset = index - 1000;
           final weekDates = _getWeekDates(_currentDate, weekOffset);
-          
+
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: weekDates.map((date) {
-                final isToday = date.day == DateTime.now().day && 
-                               date.month == DateTime.now().month &&
-                               date.year == DateTime.now().year;
-                
+                final isToday = date.day == DateTime.now().day &&
+                    date.month == DateTime.now().month &&
+                    date.year == DateTime.now().year;
+
                 return Container(
                   width: 40,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: isToday ? AppColors.primaryYellow : Colors.transparent,
+                    color:
+                        isToday ? AppColors.primaryYellow : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -653,7 +630,9 @@ Navigator.of(context).push(
                           fontFamily: AppFonts.darkerGrotesque,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: isToday ? AppColors.white : const Color(0xFF666666),
+                          color: isToday
+                              ? AppColors.white
+                              : const Color(0xFF666666),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -677,54 +656,52 @@ Navigator.of(context).push(
     );
   }
 
-
-Widget _buildHouseActivities() {
-  final billsCount = _unpaidBillsForMe.length;
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        'What\'s up in the house today?',
-        style: TextStyle(
-          fontFamily: AppFonts.darkerGrotesque,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: AppColors.black,
+  Widget _buildHouseActivities() {
+    final billsCount = _unpaidBillsForMe.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'What\'s up in the house today?',
+          style: TextStyle(
+            fontFamily: AppFonts.darkerGrotesque,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.black,
+          ),
         ),
-      ),
-      const SizedBox(height: 16),
-      SizedBox(
-        height: 100,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
-            _buildActivityCard(
-              title: '${_totalChores} Chores pending',
-              icon: 'cleaning.png',
-              color: const Color(0xFF4A90E2),
-              onTap: () => _onActivityCardTap('chores'),
-            ),
-            const SizedBox(width: 12),
-            _buildActivityCard(
-              title: '${_totalShopping} shopping items',
-              icon: 'shopping_cart.png',
-              color: const Color(0xFF4A90E2),
-              onTap: () => _onActivityCardTap('shopping'),
-            ),
-            const SizedBox(width: 12),
-            _buildActivityCard(
-              title: '$billsCount Bills due',
-              icon: 'billhand.png',
-              color: const Color(0xFFE74C93),
-              onTap: () => _onActivityCardTap('bills'),
-            ),
-          ],
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 100,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _buildActivityCard(
+                title: '${_totalChores} Chores pending',
+                icon: 'cleaning.png',
+                color: const Color(0xFF4A90E2),
+                onTap: () => _onActivityCardTap('chores'),
+              ),
+              const SizedBox(width: 12),
+              _buildActivityCard(
+                title: '${_totalShopping} shopping items',
+                icon: 'shopping_cart.png',
+                color: const Color(0xFF4A90E2),
+                onTap: () => _onActivityCardTap('shopping'),
+              ),
+              const SizedBox(width: 12),
+              _buildActivityCard(
+                title: '$billsCount Bills due',
+                icon: 'billhand.png',
+                color: const Color(0xFFE74C93),
+                onTap: () => _onActivityCardTap('bills'),
+              ),
+            ],
+          ),
         ),
-      ),
-    ],
-  );
-}
-
+      ],
+    );
+  }
 
   Widget _buildActivityCard({
     required String title,
@@ -769,76 +746,83 @@ Widget _buildHouseActivities() {
     );
   }
 
+  Widget _buildUpcomingChores() {
+    if (_loading) {
+      return const Center(
+          child: Padding(
+              padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+    }
 
-Widget _buildUpcomingChores() {
-  if (_loading) {
-    return const Center(child: Padding(
-      padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
-  }
-
-if (_homeTasks.isEmpty) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: const [
-      Text(
-        'Upcoming Chores',
-        style: TextStyle(
-          fontFamily: AppFonts.darkerGrotesque,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: AppColors.black,
-        ),
-      ),
-      SizedBox(height: 8),
-      Center(
-        child: Text(
-          'You have no tasks right now.\nMaybe take a stretch, or just vibe ✨',
-          style: TextStyle(
-            fontFamily: AppFonts.darkerGrotesque,
-            fontSize: 14,
-            color: Color(0xFF666666),
+    if (_homeTasks.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'Upcoming Chores',
+            style: TextStyle(
+              fontFamily: AppFonts.darkerGrotesque,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.black,
+            ),
           ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    ],
-  );
-}
+          SizedBox(height: 8),
+          Center(
+            child: Text(
+              'You have no tasks right now.\nMaybe take a stretch, or just vibe ✨',
+              style: TextStyle(
+                fontFamily: AppFonts.darkerGrotesque,
+                fontSize: 14,
+                color: Color(0xFF666666),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      );
+    }
 
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text('Upcoming Chores',
-        style: TextStyle(
-          fontFamily: AppFonts.darkerGrotesque,
-          fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.black)),
-      const SizedBox(height: 12),
-      ..._homeTasks.map((t) {
-        final d = (t.nextDueDateUtc ?? t.createdDateUtc).toLocal();
-        final date = '${_mon(d.month)}\n${d.day.toString().padLeft(2,'0')}';
-        final subtitle = () {
-          final assigneeId = t.assignedTo;
-          final name = _members.firstWhere(
-            (m) => m.id == assigneeId,
-            orElse: () => UserResponse(id: '', firstName: 'Unassigned', email: '', createdAt: '', role: 'MEMBER'),
-          ).firstName;
-          return name.isEmpty ? 'Unassigned' : name;
-        }();
-       final iconName = assetFromIconEnum(t.iconId);
-       return _buildChoreItem(
-        id: t.id,
-        date:date,
-        icon:iconName,
-        title:t.name,
-        subtitle:subtitle,
-        isCompleted:false,
-       );
-      }),
-    ],
-  );
-}
-
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Upcoming Chores',
+            style: TextStyle(
+                fontFamily: AppFonts.darkerGrotesque,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppColors.black)),
+        const SizedBox(height: 12),
+        ..._homeTasks.map((t) {
+          final d = (t.nextDueDateUtc ?? t.createdDateUtc).toLocal();
+          final date = '${_mon(d.month)}\n${d.day.toString().padLeft(2, '0')}';
+          final subtitle = () {
+            final assigneeId = t.assignedTo;
+            final name = _members
+                .firstWhere(
+                  (m) => m.id == assigneeId,
+                  orElse: () => UserResponse(
+                      id: '',
+                      firstName: 'Unassigned',
+                      email: '',
+                      createdAt: '',
+                      role: 'MEMBER'),
+                )
+                .firstName;
+            return name.isEmpty ? 'Unassigned' : name;
+          }();
+          final iconName = assetFromIconEnum(t.iconId);
+          return _buildChoreItem(
+            id: t.id,
+            date: date,
+            icon: iconName,
+            title: t.name,
+            subtitle: subtitle,
+            isCompleted: false,
+          );
+        }),
+      ],
+    );
+  }
 
   Widget _buildChoreItem({
     required String id,
@@ -849,7 +833,7 @@ if (_homeTasks.isEmpty) {
     required bool isCompleted,
   }) {
     final isExpanded = _choreExpanded[id] ?? false;
-    
+
     return Column(
       children: [
         GestureDetector(
@@ -922,7 +906,9 @@ if (_homeTasks.isEmpty) {
                   ),
                 ),
                 Icon(
-                  isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  isExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
                   color: const Color(0xFF666666),
                 ),
               ],
@@ -1015,92 +1001,108 @@ if (_homeTasks.isEmpty) {
   }
 
 // REPLACE _buildExpenses()
-Widget _buildExpenses() {
-  final items = _unpaidBillsForMe..sort((a, b) => a.dueDate.compareTo(b.dueDate));
-  final top = items.take(2).toList();
+  Widget _buildExpenses() {
+    final items = _unpaidBillsForMe
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    final top = items.take(2).toList();
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Your Expenses',
-            style: TextStyle(
-              fontFamily: AppFonts.darkerGrotesque,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.black,
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const BillsScreen()));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
-              foregroundColor: AppColors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text(
-              'Settle Up',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Your Expenses',
               style: TextStyle(
                 fontFamily: AppFonts.darkerGrotesque,
-                fontSize: 14,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
+                color: AppColors.black,
               ),
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-
-      if (top.isEmpty) 
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 32), // adds breathing room
-          child: Center(
-            child: Text(
-              'No upcoming expenses\nBreathe in. Breathe out.\nYour wallet is at peace. ',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: AppFonts.darkerGrotesque,
-                fontSize: 14,
-                color: Color(0xFF666666),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  RoomRequiredRoute.build(
+                    (_, session) => BillsScreen(roomSession: session),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: AppColors.white,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+              child: const Text(
+                'Settle Up',
+                style: TextStyle(
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-        )
-      else ...top.map((b) {
-        final my = b.shares.firstWhere(
-          (s) => s.userId == _me!.id,
-          orElse: () => BillShare(userId: '', amount: 0, status: 'CONFIRMED'),
-        );
-        final d = b.dueDate.toLocal();
-        final date = '${_mon(d.month)}\n${d.day.toString().padLeft(2, '0')}';
-        final amount = my.amount.toStringAsFixed(2);
-        final whoPaid = (b.paidByUserId == _me!.id) ? 'You paid' : 'Someone else paid';
-        const icon = '💸';
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (top.isEmpty)
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 32), // adds breathing room
+            child: Center(
+              child: Text(
+                'No upcoming expenses\nBreathe in. Breathe out.\nYour wallet is at peace. ',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: AppFonts.darkerGrotesque,
+                  fontSize: 14,
+                  color: Color(0xFF666666),
+                ),
+              ),
+            ),
+          )
+        else
+          ...top.map((b) {
+            final my = b.shares.firstWhere(
+              (s) => s.userId == _me!.id,
+              orElse: () =>
+                  BillShare(userId: '', amount: 0, status: 'CONFIRMED'),
+            );
+            final d = b.dueDate.toLocal();
+            final date =
+                '${_mon(d.month)}\n${d.day.toString().padLeft(2, '0')}';
+            final amount = my.amount.toStringAsFixed(2);
+            final whoPaid =
+                (b.paidByUserId == _me!.id) ? 'You paid' : 'Someone else paid';
+            const icon = '💸';
 
-        return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BillsScreen())),
-          child: _buildBillItem(
-            id: b.id,
-            date: date,
-            title: b.name,
-            subtitle: 'You owe \$$amount',
-            amount: '\$${b.amount.toStringAsFixed(2)}',
-            amountSubtitle: whoPaid,
-            icon: icon,
-          ),
-        );
-      }),
-    ],
-  );
-}
-
-
+            return GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                RoomRequiredRoute.build(
+                  (_, session) => BillsScreen(roomSession: session),
+                ),
+              ),
+              child: _buildBillItem(
+                id: b.id,
+                date: date,
+                title: b.name,
+                subtitle: 'You owe \$$amount',
+                amount: '\$${b.amount.toStringAsFixed(2)}',
+                amountSubtitle: whoPaid,
+                icon: icon,
+              ),
+            );
+          }),
+      ],
+    );
+  }
 
   Widget _buildBillItem({
     required String id,
@@ -1112,7 +1114,7 @@ Widget _buildExpenses() {
     required String icon,
   }) {
     final isExpanded = _billExpanded[id] ?? false;
-    
+
     return Column(
       children: [
         GestureDetector(
@@ -1207,7 +1209,9 @@ Widget _buildExpenses() {
                 ),
                 const SizedBox(width: 8),
                 Icon(
-                  isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  isExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
                   color: const Color(0xFF666666),
                 ),
               ],
@@ -1277,72 +1281,74 @@ Widget _buildExpenses() {
     );
   }
 
- 
-Widget _buildMessagesCard() {
-  final avatars = _members.take(5).map((m) => m.avatarImageUrl).toList();
+  Widget _buildMessagesCard() {
+    final avatars = _members.take(5).map((m) => m.avatarImageUrl).toList();
 
-  return GestureDetector(
-    onTap: _openChat,
-    child: Container(
-      height: 140,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFF4A90E2), Color(0xFF357ABD)],
+    return GestureDetector(
+      onTap: _openChat,
+      child: Container(
+        height: 140,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF4A90E2), Color(0xFF357ABD)],
+          ),
+          borderRadius: BorderRadius.circular(16),
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                for (int i = 0; i < avatars.length; i++)
-                  Positioned(
-                    left: i * 24,
-                    top: 0,
-                    child: Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        image: DecorationImage(
-                          image: (avatars[i] != null)
-                            ? NetworkImage(absoluteUrl(avatars[i]!))
-                            : const AssetImage('assets/images/avatar_1.png') as ImageProvider,
-                          fit: BoxFit.cover,
+        child: Row(
+          children: [
+            Expanded(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (int i = 0; i < avatars.length; i++)
+                    Positioned(
+                      left: i * 24,
+                      top: 0,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          image: DecorationImage(
+                            image: (avatars[i] != null)
+                                ? NetworkImage(absoluteUrl(avatars[i]!))
+                                : const AssetImage('assets/images/avatar_1.png')
+                                    as ImageProvider,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                const Positioned(
-                  left: 0, top: 50,
-                  child: Text(
-                    'You may have\nmessages',
-                    style: TextStyle(
-                      fontFamily: AppFonts.darkerGrotesque,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.white,
-                      height: 1.2,
+                  const Positioned(
+                    left: 0,
+                    top: 50,
+                    child: Text(
+                      'You may have\nmessages',
+                      style: TextStyle(
+                        fontFamily: AppFonts.darkerGrotesque,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
+                        height: 1.2,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.rotationY(3.1416),
-            child: Image.asset('assets/images/stretching_man.png',
-              width: 120, height: 120, fit: BoxFit.contain),
-          ),
-        ],
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.rotationY(3.1416),
+              child: Image.asset('assets/images/stretching_man.png',
+                  width: 120, height: 120, fit: BoxFit.contain),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 }

@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
 import '../api/client.dart';
-import '../api/room_api.dart';
 import '../utils/url_utils.dart';
 import '../api/bills_api.dart';
 import '../api/bills_models.dart';
 import '../widgets/currency_picker_bottom_sheet.dart';
 import '../state/currency_store.dart';
+import '../state/app_flow_state.dart';
 import '../utils/ui_helpers.dart';
 import 'shared_bottom_nav.dart';
 
@@ -16,14 +16,12 @@ const _currencyFallback = ['Noto Sans Symbols 2', 'Noto Sans', 'Roboto'];
 
 class PaymentPage extends StatefulWidget {
   final List<String> selectedItems;
-  final String roomId;
-  final String userId;
+  final RoomSession roomSession;
 
   const PaymentPage({
     Key? key,
     required this.selectedItems,
-    required this.roomId,
-    required this.userId,
+    required this.roomSession,
   }) : super(key: key);
 
   @override
@@ -40,7 +38,6 @@ class _PaymentPageState extends State<PaymentPage> {
   String _sanitize(String s) => s.replaceAll(RegExp(r'[^\d.]'), '');
 
   late final ApiClient _client;
-  late final RoomApi _roomApi;
   late final BillsApi _billsApi;
   List<Roommate> roommates = [];
   bool _loadingMembers = true;
@@ -55,7 +52,6 @@ class _PaymentPageState extends State<PaymentPage> {
   void initState() {
     super.initState();
     _client = ApiClient.dev();
-    _roomApi = RoomApi(_client);
     _billsApi = BillsApi(_client);
 
     _priceController.text = '${CurrencyStore.symbol.value} 0.00';
@@ -79,22 +75,19 @@ class _PaymentPageState extends State<PaymentPage> {
         : 'Shared Expense';
     _descController.text = widget.selectedItems.join(', ');
 
-    _loadMembers();
+    _loadMembersFromSession();
   }
 
-  Future<void> _loadMembers() async {
-    final ms = await _roomApi.getMembers(widget.roomId);
-    setState(() {
-      roommates = ms
-          .map((m) => Roommate(
-                id: m.id,
-                name: m.firstName,
-                avatar: m.avatarImageUrl ?? 'assets/images/avatar_1.png',
-                isPayer: m.id == widget.userId,
-              ))
-          .toList();
-      _loadingMembers = false;
-    });
+  void _loadMembersFromSession() {
+    roommates = widget.roomSession.members
+        .map((member) => Roommate(
+              id: member.id,
+              name: member.firstName,
+              avatar: member.avatarImageUrl ?? 'assets/images/avatar_1.png',
+              isPayer: member.id == widget.roomSession.userId,
+            ))
+        .toList();
+    _loadingMembers = false;
   }
 
   Future<void> _createInvoice() async {
@@ -127,18 +120,18 @@ class _PaymentPageState extends State<PaymentPage> {
         : _descController.text.trim();
 
     final req = BillCreateReq(
-      roomId: widget.roomId,
+      roomId: widget.roomSession.roomId,
       name: name,
       description: desc,
       amount: amountToCollect,
       dueDate: DateTime.now().toUtc().add(const Duration(days: 7)),
-      paidByUserId: widget.userId,
+      paidByUserId: widget.roomSession.userId,
       splitAmongUserIds: others,
       isContract: _isContract,
     );
 
     try {
-      await _billsApi.create(widget.roomId, req);
+      await _billsApi.create(widget.roomSession.roomId, req);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Invoice created and sent ✅")),
@@ -894,8 +887,10 @@ class _PaymentPageState extends State<PaymentPage> {
           ],
         ),
       ),
-
-      bottomNavigationBar: const SharedBottomNav(currentIndex: 2),
+      bottomNavigationBar: SharedBottomNav(
+        currentIndex: 2,
+        roomSession: widget.roomSession,
+      ),
     );
   }
 

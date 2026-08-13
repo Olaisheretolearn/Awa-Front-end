@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
-import 'create_join_flat_screen.dart';
 import '../api/client.dart';
 import '../api/auth_api.dart';
 import "../utils/ui_helpers.dart";
 import 'package:dio/dio.dart';
-import 'home_screen.dart';
+import '../state/app_scope.dart';
 
 class AvatarSelectionScreen extends StatefulWidget {
   const AvatarSelectionScreen({super.key});
@@ -409,8 +408,10 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                               onPressed: _selectedAvatarIndex != null
                                   ? () async {
                                       final api = AuthApi(ApiClient.dev());
+                                      final flow = AppScope.read(context);
                                       try {
-                                        final me = await api.getMe();
+                                        final me = flow.currentUser ??
+                                            await api.getMe();
 
                                         final avatarId =
                                             'AVA_${(_selectedAvatarIndex! + 1).toString().padLeft(2, '0')}';
@@ -419,25 +420,7 @@ class _AvatarSelectionScreenState extends State<AvatarSelectionScreen>
                                           userId: me.id,
                                           avatarId: avatarId,
                                         );
-
-                                        final meAfter = await api.getMe();
-                                        if (!mounted) return;
-
-                                        if (meAfter.roomId == null) {
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const CreateJoinFlatScreen()),
-                                          );
-                                        } else {
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const HomeScreen()),
-                                          );
-                                        }
+                                        await flow.resolveAuthenticatedState();
                                       } on DioException catch (e) {
                                         showSnack(context, extractMsg(e));
                                       } catch (_) {

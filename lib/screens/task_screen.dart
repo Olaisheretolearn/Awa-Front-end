@@ -6,16 +6,16 @@ import '../api/client.dart';
 import '../api/tasks_api.dart';
 import '../api/tasks_models.dart';
 import '../api/icon_map.dart';
-import '../api/room_api.dart';
 import '../api/model.dart';
+import '../state/app_flow_state.dart';
 import '../utils/url_utils.dart';
 import '../widgets/exit_app_guard.dart';
 import '../utils/ui_helpers.dart';
 
 class TasksScreen extends StatefulWidget {
-  final String roomId;
-  final String userId;
-  const TasksScreen({super.key, required this.roomId, required this.userId});
+  const TasksScreen({super.key, required this.roomSession});
+
+  final RoomSession roomSession;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -32,6 +32,9 @@ class _TasksScreenState extends State<TasksScreen> {
   final Set<String> _expandedTasks = <String>{};
   List<UserResponse> _members = [];
 
+  String get _roomId => widget.roomSession.roomId;
+  String get _userId => widget.roomSession.userId;
+
   @override
   void initState() {
     super.initState();
@@ -42,29 +45,27 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Future<void> _loadRoommates() async {
     try {
-      final roomApi = RoomApi(ApiClient.dev());
-      final members = await roomApi.getMembers(widget.roomId);
+      final members = widget.roomSession.members;
+      final others = members.where((m) => m.id != _userId).toList();
 
-      final me = members.firstWhere((m) => m.id == widget.userId,
-          orElse: () => members.first);
-      final others = members.where((m) => m.id != widget.userId).toList();
-
+      if (!mounted) return;
       setState(() {
         _members = members;
 
         _roommatesByName = {
-          'You': widget.userId,
+          'You': _userId,
           for (final m in others) m.firstName: m.id,
         };
 
         _nameById = {
           for (final m in members)
-            m.id: (m.id == widget.userId ? 'You' : m.firstName),
+            m.id: (m.id == _userId ? 'You' : m.firstName),
         };
 
         _loadingRoommates = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loadingRoommates = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(defaultErrorMessage)),
@@ -81,12 +82,14 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Future<void> _load() async {
     try {
-      final items = await _api.listByRoom(widget.roomId);
+      final items = await _api.listByRoom(_roomId);
+      if (!mounted) return;
       setState(() {
         _tasks = items;
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = defaultErrorMessage;
         _loading = false;
@@ -141,8 +144,7 @@ class _TasksScreenState extends State<TasksScreen> {
         ),
         bottomNavigationBar: SharedBottomNav(
           currentIndex: 4, // Tasks tab index
-          roomId: widget.roomId,
-          userId: widget.userId,
+          roomSession: widget.roomSession,
         ),
       ),
     );
@@ -155,7 +157,7 @@ class _TasksScreenState extends State<TasksScreen> {
       );
 
   Widget _buildHeader() {
-    final me = _findMemberById(widget.userId);
+    final me = _findMemberById(_userId);
     final avatarUrl = me?.avatarImageUrl; // e.g. "/avatars/ava_03.png"
 
     return Padding(
@@ -388,8 +390,8 @@ class _TasksScreenState extends State<TasksScreen> {
                 child: ElevatedButton(
                   onPressed: () async {
                     try {
-                      final updated = await _api.markComplete(
-                          widget.roomId, task.id, widget.userId);
+                      final updated =
+                          await _api.markComplete(_roomId, task.id, _userId);
                       setState(() {
                         _tasks = _tasks
                             .map((t) => t.id == updated.id ? updated : t)
@@ -426,7 +428,7 @@ class _TasksScreenState extends State<TasksScreen> {
               OutlinedButton(
                 onPressed: () async {
                   try {
-                    await _api.delete(widget.roomId, task.id);
+                    await _api.delete(_roomId, task.id);
                     setState(() {
                       _tasks.removeWhere((t) => t.id == task.id);
                       _expandedTasks.remove(task.id);
@@ -498,7 +500,7 @@ class _TasksScreenState extends State<TasksScreen> {
       builder: (_) => CreateTaskBottomSheet(
         onSubmit: (TaskCreateReq req) async {
           try {
-            final created = await _api.create(widget.roomId, req);
+            final created = await _api.create(_roomId, req);
             setState(() => _tasks = [..._tasks, created]);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -514,7 +516,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 const SnackBar(content: Text(defaultErrorMessage)));
           }
         },
-        currentUserId: widget.userId,
+        currentUserId: _userId,
         roommatesByName: _roommatesByName,
         members: _members,
       ),

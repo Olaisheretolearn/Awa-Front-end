@@ -1,23 +1,26 @@
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_storage.dart';
 import 'auth_interceptor.dart';
+import 'session_controller.dart';
 
 class ApiClient {
+  static const _defaultOrigin = 'https://awa-pp4u.onrender.com';
+
   final Dio dio;
   final AuthStorage storage;
+  final AuthInterceptor authInterceptor;
 
-  ApiClient._(this.dio, this.storage);
+  static ApiClient? _shared;
+
+  ApiClient._(this.dio, this.storage, this.authInterceptor);
 
   factory ApiClient.dev() {
+    final existing = _shared;
+    if (existing != null) return existing;
     const envBase = String.fromEnvironment('API_BASE');
 
-    final defaultBase = kReleaseMode
-        ? 'https://awa-pp4u.onrender.com'
-        : 'http://127.0.0.1:8080';
-
-    final base = (envBase.isNotEmpty ? envBase : defaultBase);
+    final base = envBase.isNotEmpty ? envBase : _defaultOrigin;
 
     final storage = AuthStorage();
     final dio = Dio(
@@ -30,35 +33,32 @@ class ApiClient {
       ),
     );
 
-    dio.interceptors.add(AuthInterceptor(storage, baseUrl: '$base/api'));
+    final authInterceptor = AuthInterceptor(
+      storage,
+      baseUrl: '$base/api',
+      onUnauthorized: SessionController.instance.markSignedOut,
+    );
+    dio.interceptors.add(authInterceptor);
 
-
-
-    
-
-
- if (kDebugMode) {
-  dio.interceptors.add(
-    LogInterceptor(
-      request: true,
-      requestHeader: true,
-      requestBody: true,
-      responseHeader: false,
-      responseBody: true,
-      error: true,
-    ),
-  );
-}
-
-
-    return ApiClient._(dio, storage);
+    if (kDebugMode) {
+      dio.interceptors.add(
+        LogInterceptor(
+          request: true,
+          requestHeader: true,
+          requestBody: true,
+          responseHeader: false,
+          responseBody: true,
+          error: true,
+        ),
+      );
     }
 
-    static String get origin {
-    const envBase = String.fromEnvironment('API_BASE');
-    if (envBase.isNotEmpty) return envBase;
-     return kReleaseMode ? 'https://awa-pp4u.onrender.com' : 'http://127.0.0.1:8080';
+    return _shared = ApiClient._(dio, storage, authInterceptor);
   }
 
-
+  static String get origin {
+    const envBase = String.fromEnvironment('API_BASE');
+    if (envBase.isNotEmpty) return envBase;
+    return _defaultOrigin;
+  }
 }

@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
-import 'home_screen.dart';
 import '../api/client.dart';
 import '../api/room_api.dart';
-import '../api/auth_api.dart';
+import '../state/app_scope.dart';
 
 class InvitationCodeScreen extends StatefulWidget {
   const InvitationCodeScreen({super.key});
@@ -70,7 +69,7 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
   Widget build(BuildContext context) {
     final api = ApiClient.dev();
     final roomApi = RoomApi(api);
-    final authApi = AuthApi(api);
+    final flow = AppScope.read(context);
 
     return Scaffold(
       body: Column(
@@ -223,18 +222,14 @@ class _InvitationCodeScreenState extends State<InvitationCodeScreen>
                     child: ElevatedButton(
                       onPressed: () async {
                         try {
-                          final me =
-                              await authApi.getMe(); // get logged-in user id
+                          final me = flow.currentUser;
+                          if (me == null) {
+                            await flow.resolveAuthenticatedState();
+                            return;
+                          }
                           await roomApi.joinRoom(
                               userId: me.id, code: _invitationCode);
-                          if (!mounted) return;
-                          // after await roomApi.joinRoom(...)
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const HomeScreen()),
-                            (route) => false,
-                          );
+                          await flow.resolveAuthenticatedState();
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Join failed: $e')));

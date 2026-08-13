@@ -3,8 +3,8 @@ class AuthResponse {
   final String accessToken;
   final String refreshToken;
   AuthResponse({required this.accessToken, required this.refreshToken});
-  factory AuthResponse.fromJson(Map<String, dynamic> j) =>
-      AuthResponse(accessToken: j['accessToken'], refreshToken: j['refreshToken']);
+  factory AuthResponse.fromJson(Map<String, dynamic> j) => AuthResponse(
+      accessToken: j['accessToken'], refreshToken: j['refreshToken']);
 }
 
 class UserResponse {
@@ -39,7 +39,7 @@ class UserResponse {
         avatarImageUrl: j['avatarImageUrl'],
       );
 
-       UserResponse copyWith({
+  UserResponse copyWith({
     String? id,
     String? firstName,
     String? email,
@@ -48,6 +48,7 @@ class UserResponse {
     String? roomId,
     String? avatarId,
     String? avatarImageUrl,
+    bool clearRoomId = false,
   }) {
     return UserResponse(
       id: id ?? this.id,
@@ -55,13 +56,12 @@ class UserResponse {
       email: email ?? this.email,
       createdAt: createdAt ?? this.createdAt,
       role: role ?? this.role,
-      roomId: roomId ?? this.roomId,
+      roomId: clearRoomId ? null : (roomId ?? this.roomId),
       avatarId: avatarId ?? this.avatarId,
       avatarImageUrl: avatarImageUrl ?? this.avatarImageUrl,
     );
   }
 }
-
 
 class RoomResponse {
   final String id;
@@ -96,12 +96,15 @@ class MyRoomResponse {
 
   MyRoomResponse({required this.room, required this.members});
 
-  factory MyRoomResponse.fromJson(Map<String, dynamic> j) => MyRoomResponse(
-        room: j['room'] == null ? null : RoomResponse.fromJson(j['room']),
-        members: (j['members'] as List)
-            .map((e) => UserResponse.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+  factory MyRoomResponse.fromJson(Map<String, dynamic> j) {
+    final rawMembers = j['members'] as List? ?? const [];
+    return MyRoomResponse(
+      room: j['room'] == null
+          ? null
+          : RoomResponse.fromJson(j['room'] as Map<String, dynamic>),
+      members: rawMembers
+          .map((e) => UserResponse.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
-
-

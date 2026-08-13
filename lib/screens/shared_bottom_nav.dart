@@ -1,77 +1,50 @@
-// shared_bottom_nav.dart
 import 'package:flutter/material.dart';
+
 import '../constants/app_colors.dart';
 import '../constants/app_fonts.dart';
-import 'home_screen.dart';
-import 'shopping_list_screen.dart';
+import '../navigation/room_required_route.dart';
+import '../state/app_flow_state.dart';
 import 'bill_screen.dart';
 import 'chat_screen.dart';
+import 'shopping_list_screen.dart';
 import 'task_screen.dart';
-import '../api/client.dart';
-import '../api/room_api.dart';
-import '../api/auth_api.dart';
-import '../api/tasks_api.dart';
-import '../utils/ui_helpers.dart';
 
 class SharedBottomNav extends StatelessWidget {
-  final int currentIndex;
-  final bool shouldPop;
-
-  final String? roomId;
-  final String? userId;
-
   const SharedBottomNav({
-    Key? key,
+    super.key,
     required this.currentIndex,
-    this.shouldPop = true,
-    this.roomId,
-    this.userId,
-  }) : super(key: key);
+    required this.roomSession,
+  });
+
+  final int currentIndex;
+  final RoomSession roomSession;
 
   void _navigateToScreen(BuildContext context, int index) {
     if (index == currentIndex) return;
 
-    Widget screen;
-    switch (index) {
-      case 0:
-        screen = const HomeScreen();
-        break;
-      case 1:
-        screen = ShoppingListPage();
-        break;
-      case 2:
-        screen = const BillsScreen();
-        break;
-      case 3:
-        if (roomId != null && userId != null) {
-          screen = ChatScreen(roomId: roomId!, userId: userId!);
-        } else {
-          screen = const _ChatGate(); // will fetch me + my room, then push Chat
-        }
-        break;
-      case 4:
-        if (roomId != null && userId != null) {
-          screen = TasksScreen(roomId: roomId!, userId: userId!);
-        } else {
-          screen = const _TasksGate();
-        }
-        break;
-      default:
-        return;
+    final navigator = Navigator.of(context);
+    if (index == 0) {
+      navigator.popUntil((route) => route.isFirst);
+      return;
     }
 
-    final route = MaterialPageRoute(builder: (context) => screen);
-    if (shouldPop) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => screen),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => screen),
-      );
-    }
+    final route = RoomRequiredRoute.build<void>((_, latestSession) {
+      switch (index) {
+        case 1:
+          return ShoppingListPage(roomSession: latestSession);
+        case 2:
+          return BillsScreen(roomSession: latestSession);
+        case 3:
+          return ChatScreen(roomSession: latestSession);
+        case 4:
+          return TasksScreen(roomSession: latestSession);
+        default:
+          return const SizedBox.shrink();
+      }
+    });
+
+    // Keep the app-flow gate as the first route and replace only feature pages.
+    navigator.pushAndRemoveUntil(route, (existing) => existing.isFirst);
   }
 
   @override
@@ -87,11 +60,11 @@ class SharedBottomNav extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildNavItem(context, Icons.home, "Home", 0),
-            _buildNavItem(context, Icons.shopping_bag, "Shopping", 1),
-            _buildNavItem(context, Icons.attach_money, "Bills", 2),
-            _buildNavItem(context, Icons.chat_bubble_outline, "Chat", 3),
-            _buildNavItem(context, Icons.check_circle_outline, "Tasks", 4),
+            _buildNavItem(context, Icons.home, 'Home', 0),
+            _buildNavItem(context, Icons.shopping_bag, 'Shopping', 1),
+            _buildNavItem(context, Icons.attach_money, 'Bills', 2),
+            _buildNavItem(context, Icons.chat_bubble_outline, 'Chat', 3),
+            _buildNavItem(context, Icons.check_circle_outline, 'Tasks', 4),
           ],
         ),
       ),
@@ -99,9 +72,12 @@ class SharedBottomNav extends StatelessWidget {
   }
 
   Widget _buildNavItem(
-      BuildContext context, IconData icon, String label, int index) {
-    final bool isSelected = currentIndex == index;
-
+    BuildContext context,
+    IconData icon,
+    String label,
+    int index,
+  ) {
+    final isSelected = currentIndex == index;
     return GestureDetector(
       onTap: () => _navigateToScreen(context, index),
       child: Column(
@@ -132,120 +108,6 @@ class SharedBottomNav extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _TasksGate extends StatefulWidget {
-  const _TasksGate({Key? key}) : super(key: key);
-
-  @override
-  State<_TasksGate> createState() => _TasksGateState();
-}
-
-class _TasksGateState extends State<_TasksGate> {
-  final _api = ApiClient.dev();
-
-  @override
-  void initState() {
-    super.initState();
-    _go();
-  }
-
-  Future<void> _go() async {
-    try {
-      final auth = AuthApi(_api);
-      final roomApi = RoomApi(_api);
-
-      final me = await auth.getMe(); // has user id
-      final myRoom = await roomApi.getMyRoom(); // or get room via /rooms/me
-      final roomId = myRoom.room?.id;
-
-      if (!mounted) return;
-      if (roomId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No room yet — create or join first')),
-        );
-        Navigator.pop(context);
-        return;
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-            builder: (_) => TasksScreen(roomId: roomId, userId: me.id)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(extractMsg(e))),
-      );
-      Navigator.pop(context);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColors.white,
-      body: Center(child: CircularProgressIndicator()),
-    );
-  }
-}
-
-class _ChatGate extends StatefulWidget {
-  const _ChatGate({Key? key}) : super(key: key);
-
-  @override
-  State<_ChatGate> createState() => _ChatGateState();
-}
-
-class _ChatGateState extends State<_ChatGate> {
-  final _api = ApiClient.dev();
-
-  @override
-  void initState() {
-    super.initState();
-    _go();
-  }
-
-  Future<void> _go() async {
-    try {
-      final auth = AuthApi(_api);
-      final roomApi = RoomApi(_api);
-
-      final me = await auth.getMe();
-      final myRoom = await roomApi.getMyRoom();
-      final roomId = myRoom.room?.id;
-
-      if (!mounted) return;
-      if (roomId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No room yet — create or join first')),
-        );
-        Navigator.pop(context);
-        return;
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-            builder: (_) => ChatScreen(roomId: roomId, userId: me.id)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(extractMsg(e))),
-      );
-      Navigator.pop(context);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColors.white,
-      body: Center(child: CircularProgressIndicator()),
     );
   }
 }
